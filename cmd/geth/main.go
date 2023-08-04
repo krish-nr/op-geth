@@ -362,6 +362,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 	debug.Memsize.Add("node", stack)
 
 	// Start up the node itself
+	//这里是同步入口
 	utils.StartNode(ctx, stack, isConsole)
 
 	// Unlock any account specifically requested

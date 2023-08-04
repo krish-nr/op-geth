@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gofrs/flock"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -37,7 +39,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/gofrs/flock"
 )
 
 // Node is a container on which services can be registered.
@@ -186,6 +187,7 @@ func (n *Node) Start() error {
 	// Start all registered lifecycles.
 	var started []Lifecycle
 	for _, lifecycle := range lifecycles {
+		//这里开始同步
 		if err = lifecycle.Start(); err != nil {
 			break
 		}
