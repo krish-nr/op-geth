@@ -165,14 +165,14 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		fullBlock, snapBlock := h.chain.CurrentBlock(), h.chain.CurrentSnapBlock()
 		if fullBlock.Number.Uint64() == 0 && snapBlock.Number.Uint64() > 0 {
 			h.snapSync = uint32(1)
-			log.Warn("Switch sync mode from full sync to snap sync")
+			log.Warn("Switch sync mode from full sync to snap sync 1")
 		}
 	} else {
 		blockNumber := h.chain.CurrentBlock().Number
 		if blockNumber.Uint64() > 0 && (!config.Chain.Config().IsOptimism() || blockNumber.Cmp(config.Chain.Config().BedrockBlock) != 0) {
 			// Print warning log if database is not empty to run snap sync.
 			// For OP chains, snap sync from bedrock block is allowed.
-			log.Warn("Switch sync mode from snap sync to full sync")
+			log.Warn("Switch sync mode from snap sync to full sync 2")
 		} else {
 			// If snap sync was requested and our database is empty, grant it
 			h.snapSync = uint32(1)
