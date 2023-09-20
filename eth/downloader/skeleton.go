@@ -364,7 +364,7 @@ func (s *skeleton) sync(head *types.Header) (*types.Header, error) {
 		rawdb.HasBody(s.db, s.progress.Subchains[0].Next, s.scratchHead) &&
 		rawdb.HasReceipts(s.db, s.progress.Subchains[0].Next, s.scratchHead)
 	if linked {
-		s.filler.resume()
+		s.filler.resume() //走的beaconsync
 	}
 	defer func() {
 		if filled := s.filler.suspend(); filled != nil {
