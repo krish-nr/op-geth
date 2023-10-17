@@ -46,7 +46,7 @@ var protocolLengths = map[uint]uint64{SNAP1: 8}
 const maxMessageSize = 10 * 1024 * 1024
 
 const (
-	GetAccountRangeMsg  = 0x00
+	GetAccountRangeMsg  = 0x00 //ZXL
 	AccountRangeMsg     = 0x01
 	GetStorageRangesMsg = 0x02
 	StorageRangesMsg    = 0x03

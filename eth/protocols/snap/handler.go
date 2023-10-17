@@ -161,6 +161,7 @@ func HandleMessage(backend Backend, peer *Peer) error {
 			return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 		}
 		// Service the request, potentially returning nothing in case of errors
+		log.Info("ZXL 1")
 		accounts, proofs := ServiceGetAccountRangeQuery(backend.Chain(), &req)
 
 		// Send back anything accumulated (or empty in case of errors)
@@ -283,13 +284,16 @@ func ServiceGetAccountRangeQuery(chain *core.BlockChain, req *GetAccountRangePac
 	if req.Bytes > softResponseLimit {
 		req.Bytes = softResponseLimit
 	}
+	log.Info("ZXL 1.1")
 	// Retrieve the requested state and bail out if non existent
 	tr, err := trie.New(trie.StateTrieID(req.Root), chain.StateCache().TrieDB())
 	if err != nil {
+		log.Error("ZXL 1.2", "err", err)
 		return nil, nil
 	}
 	it, err := chain.Snapshots().AccountIterator(req.Root, req.Origin)
 	if err != nil {
+		log.Error("ZXL 1.3", "err", err)
 		return nil, nil
 	}
 	// Iterate over the requested range and pile accounts up
@@ -320,6 +324,8 @@ func ServiceGetAccountRangeQuery(chain *core.BlockChain, req *GetAccountRangePac
 	}
 	it.Release()
 
+	log.Info("ZXL 1.4")
+
 	// Generate the Merkle proofs for the first and last account
 	proof := light.NewNodeSet()
 	if err := tr.Prove(req.Origin[:], 0, proof); err != nil {
@@ -336,6 +342,8 @@ func ServiceGetAccountRangeQuery(chain *core.BlockChain, req *GetAccountRangePac
 	for _, blob := range proof.NodeList() {
 		proofs = append(proofs, blob)
 	}
+	log.Info("ZXL 1.5", "accounts", accounts)
+
 	return accounts, proofs
 }
 
