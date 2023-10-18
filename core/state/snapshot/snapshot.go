@@ -320,6 +320,10 @@ func (t *Tree) Snapshot(blockRoot common.Hash) Snapshot {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
+	for key := range t.layers {
+		log.Info("ZXL", "snapshotHash", key.Hex())
+	}
+
 	return t.layers[blockRoot]
 }
 
