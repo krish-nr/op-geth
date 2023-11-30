@@ -224,8 +224,10 @@ func (t *UDPv4) ping(n *enode.Node) (seq uint64, err error) {
 
 // sendPing sends a ping message to the given node and invokes the callback
 // when the reply arrives.
+// ZXL 在这里发生的变化
 func (t *UDPv4) sendPing(toid enode.ID, toaddr *net.UDPAddr, callback func()) *replyMatcher {
 	req := t.makePing(toaddr)
+	log.Warn("ZXL SendPing", "toID", toid, "fromIP", req.From.IP.String(), "fromPortTCP", req.From.TCP, "fromPortUDP", req.From.UDP)
 	packet, hash, err := v4wire.Encode(t.priv, req)
 	if err != nil {
 		errc := make(chan error, 1)
@@ -299,6 +301,7 @@ func (t *UDPv4) newLookup(ctx context.Context, targetKey encPubkey) *lookup {
 
 // findnode sends a findnode request to the given node and waits until
 // the node has sent up to k neighbors.
+// ZXL: 处理neighbors逻辑的地方
 func (t *UDPv4) findnode(toid enode.ID, toaddr *net.UDPAddr, target v4wire.Pubkey) ([]*node, error) {
 	t.ensureBond(toid, toaddr)
 
@@ -497,6 +500,7 @@ func (t *UDPv4) loop() {
 	}
 }
 
+// 通用send? send
 func (t *UDPv4) send(toaddr *net.UDPAddr, toid enode.ID, req v4wire.Packet) ([]byte, error) {
 	packet, hash, err := v4wire.Encode(t.priv, req)
 	if err != nil {
@@ -508,6 +512,9 @@ func (t *UDPv4) send(toaddr *net.UDPAddr, toid enode.ID, req v4wire.Packet) ([]b
 func (t *UDPv4) write(toaddr *net.UDPAddr, toid enode.ID, what string, packet []byte) error {
 	_, err := t.conn.WriteToUDP(packet, toaddr)
 	t.log.Trace(">> "+what, "id", toid, "addr", toaddr, "err", err)
+	if what == "FINDNODE/v4" {
+		log.Info("FINDNODE msg")
+	}
 	return err
 }
 
@@ -665,8 +672,10 @@ func (t *UDPv4) handlePing(h *packetHandlerV4, from *net.UDPAddr, fromID enode.I
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 		ENRSeq:     t.localNode.Node().Seq(),
 	})
+	log.Info("ZXL: handlePing,sendPong", "nodeId", fromID, "targetIP", from.IP.String(), "targetPort", from.Port)
 
 	// Ping back if our last pong on file is too far in the past.
+	//ZXL
 	n := wrapNode(enode.NewV4(h.senderKey, from.IP, int(req.From.TCP), from.Port))
 	if time.Since(t.db.LastPongReceived(n.ID(), from.IP)) > bondExpiration {
 		t.sendPing(fromID, from, func() {
@@ -706,7 +715,7 @@ func (t *UDPv4) verifyFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 		return errExpired
 	}
 	if !t.checkBond(fromID, from.IP) {
-		// No endpoint proof pong exists, we don't process the packet. This prevents an
+		// No endpoint proof poudpng exists, we don't process the packet. This prevents an
 		// attack vector where the discovery protocol could be used to amplify traffic in a
 		// DDOS attack. A malicious actor would send a findnode request with the IP address
 		// and UDP port of the target as the source address. The recipient of the findnode

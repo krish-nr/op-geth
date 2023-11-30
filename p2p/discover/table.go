@@ -501,6 +501,7 @@ func (tab *Table) addSeenNode(n *node) {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addVerifiedNode(n *node) {
+	log.Info("ZXL: addVerifiedNode", "nodeIP", n.IP().String(), "nodePort", "nodeId", n.ID().String())
 	if !tab.isInitDone() {
 		return
 	}
