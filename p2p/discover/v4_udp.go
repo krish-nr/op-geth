@@ -755,7 +755,11 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 // NEIGHBORS/v4
 
 func (t *UDPv4) verifyNeighbors(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, fromKey v4wire.Pubkey) error {
+	log.Info("ZXL: verifyNeighbors", "fromIp", from.IP.String(), "fromPort", from.Port)
 	req := h.Packet.(*v4wire.Neighbors)
+	for i, neighbor := range req.Nodes {
+		log.Info("ZXL: received neighbors", "index", i, "IP", neighbor.IP.String(), "UDP_PORT", neighbor.UDP, "TCP_PORT", neighbor.TCP, "NodeId", neighbor.ID.ID())
+	}
 
 	if v4wire.Expired(req.Expiration) {
 		return errExpired

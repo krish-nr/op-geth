@@ -1821,6 +1821,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 
 		// skip block process if we already have the state, receipts and logs from mining work
 		if !(receiptExist && logExist && stateExist) {
+			log.Info("Krish debug:")
 			// Retrieve the parent block and it's state to execute on top
 			parent := it.previous()
 			if parent == nil {
