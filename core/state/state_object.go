@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
@@ -179,6 +180,7 @@ func (s *stateObject) getOriginStorage(key common.Hash) (common.Hash, bool) {
 	// if L1 cache miss, try to get it from shared pool
 	if s.sharedOriginStorage != nil {
 		val, ok := s.sharedOriginStorage.Load(key)
+		log.Info("Krish debug: get storage", "key", key.String(), "value", val)
 		if !ok {
 			return common.Hash{}, false
 		}
@@ -190,6 +192,7 @@ func (s *stateObject) getOriginStorage(key common.Hash) (common.Hash, bool) {
 
 func (s *stateObject) setOriginStorage(key common.Hash, value common.Hash) {
 	if s.db.writeOnSharedStorage && s.sharedOriginStorage != nil {
+		log.Info("Krish debug: storage", "key", key.String(), "value", value.String())
 		s.sharedOriginStorage.Store(key, value)
 	}
 	s.originStorage[key] = value
