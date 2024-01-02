@@ -646,6 +646,7 @@ func (q *queue) expire(peer string, pendPool map[string]*fetchRequest, taskQueue
 		return 0
 	}
 	delete(pendPool, peer)
+	log.Debug("delete pendPool", "peer", peer, "From", req.From)
 
 	// Return any non-satisfied requests to the pool
 	if req.From > 0 {

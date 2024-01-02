@@ -64,7 +64,7 @@ func (q *bodyQueue) reserve(peer *peerConnection, items int) (*fetchRequest, boo
 func (q *bodyQueue) unreserve(peer string) int {
 	fails := q.queue.ExpireBodies(peer)
 	if fails > 2 {
-		log.Trace("Body delivery timed out", "peer", peer)
+		log.Debug("Body delivery timed out", "peer", peer)
 	} else {
 		log.Debug("Body delivery stalling", "peer", peer)
 	}
@@ -74,7 +74,7 @@ func (q *bodyQueue) unreserve(peer string) int {
 // request is responsible for converting a generic fetch request into a body
 // one and sending it to the remote peer for fulfillment.
 func (q *bodyQueue) request(peer *peerConnection, req *fetchRequest, resCh chan *eth.Response) (*eth.Request, error) {
-	peer.log.Trace("Requesting new batch of bodies", "count", len(req.Headers), "from", req.Headers[0].Number)
+	peer.log.Debug("Requesting new batch of bodies", "count", len(req.Headers), "from", req.Headers[0].Number)
 	if q.bodyFetchHook != nil {
 		q.bodyFetchHook(req.Headers)
 	}

@@ -112,6 +112,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 		// be fulfilled by the remote side, but the dispatcher will not wait to
 		// deliver them since nobody's going to be listening.
 		for _, req := range stales {
+			log.Info("stales request: time sent", "sent time", req.Sent.String(), "sent peer", req.Peer)
 			req.Close()
 		}
 	}()
@@ -135,6 +136,8 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 			if len(pending) == 0 && finished {
 				return nil
 			}
+			log.Error("Krish Debug: no tasks but not finished")
+			time.Sleep(1000 * time.Millisecond)
 		} else {
 			// Send a download request to all idle peers, until throttled
 			var (
@@ -154,6 +157,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 						peer.log.Warn("Peer stalling, dropping", "waited", common.PrettyDuration(waited))
 						d.dropPeer(peer.id)
 					}
+					log.Error("Peer stale", "time duration ", time.Since(stale.Sent).String())
 				}
 			}
 			sort.Sort(&peerCapacitySort{idles, caps})
@@ -164,6 +168,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 				queued     = queue.pending()
 			)
 			for _, peer := range idles {
+				log.Info("Step into idles loop", "count", len(idles))
 				// Short circuit if throttling activated or there are no more
 				// queued tasks to be retrieved
 				if throttled {
@@ -189,14 +194,18 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 				// Fetch the chunk and make sure any errors return the hashes to the queue
 				req, err := queue.request(peer, request, responses)
 				if err != nil {
+					log.Error("fetch request error", "peer", peer.id, "err", err)
 					// Sending the request failed, which generally means the peer
 					// was disconnected in between assignment and network send.
 					// Although all peer removal operations return allocated tasks
 					// to the queue, that is async, and we can do better here by
 					// immediately pushing the unfulfilled requests.
-					queue.unreserve(peer.id) // TODO(karalabe): This needs a non-expiration method
+					fails := queue.unreserve(peer.id) // TODO(karalabe): This needs a non-expiration method
+					log.Error("fetch request error", "fails num", fails, "current idles", len(idles))
+
 					continue
 				}
+				log.Info("successfully assign task")
 				pending[peer.id] = req
 
 				ttl := d.peers.rates.TargetTimeout()
@@ -219,6 +228,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 			// If sync was cancelled, tear down the parallel retriever. Pending
 			// requests will be cancelled locally, and the remote responses will
 			// be dropped when they arrive
+			log.Info("receive cancel")
 			return errCanceled
 
 		case event := <-peering:
@@ -268,6 +278,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 			// below is purely for to catch programming errors, given the correct
 			// code, there's no possible order of events that should result in a
 			// timeout firing for a non-existent event.
+			log.Info("Timeout triggered")
 			req, exp := timeouts.Peek()
 			if now, at := time.Now(), time.Unix(0, -exp); now.Before(at) {
 				log.Error("Timeout triggered but not reached", "left", at.Sub(now))
@@ -328,6 +339,8 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 			}
 
 		case res := <-responses:
+			log.Info("receive responses")
+
 			// Response arrived, it may be for an existing or an already timed
 			// out request. If the former, update the timeout heap and perhaps
 			// reschedule the timeout timer.
