@@ -18,7 +18,7 @@ ADD . /go-ethereum
 ENV CGO_ENABLED=1
 ENV CGO_CFLAGS="-O -D__BLST_PORTABLE__"
 ENV CGO_CFLAGS_ALLOW="-O -D__BLST_PORTABLE__"
-RUN cd /go-ethereum && go run build/ci.go install -ldflags "-compressdwarf=false" ./cmd/geth
+RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
 
 # Pull Geth into a second stage deploy alpine container
 FROM alpine:latest
