@@ -714,6 +714,9 @@ func (t *UDPv4) verifyFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 	if v4wire.Expired(req.Expiration) {
 		return errExpired
 	}
+	/**
+
+
 	if !t.checkBond(fromID, from.IP) {
 		// No endpoint proof poudpng exists, we don't process the packet. This prevents an
 		// attack vector where the discovery protocol could be used to amplify traffic in a
@@ -723,6 +726,7 @@ func (t *UDPv4) verifyFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 		// findnode) to the victim.
 		return errUnknownNode
 	}
+	*/
 	return nil
 }
 
