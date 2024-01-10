@@ -424,6 +424,20 @@ func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *
 	return nodes
 }
 
+// get all nodes ids
+func (tab *Table) getAllNodeIDs() []enode.ID {
+	tab.mutex.Lock()
+	defer tab.mutex.Unlock()
+
+	var ids []enode.ID
+	for _, b := range tab.buckets {
+		for _, n := range b.entries {
+			ids = append(ids, n.ID())
+		}
+	}
+	return ids
+}
+
 // len returns the number of nodes in the table.
 func (tab *Table) len() (n int) {
 	tab.mutex.Lock()
@@ -507,6 +521,11 @@ func (tab *Table) addVerifiedNode(n *node) {
 	}
 	if n.ID() == tab.self().ID() {
 		return
+	}
+	nodeIDs := tab.getAllNodeIDs()
+
+	for i, id := range nodeIDs {
+		log.Info("ZXL: current tab content", "index", i, "nodeId", id.String())
 	}
 
 	tab.mutex.Lock()
