@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
@@ -179,30 +178,19 @@ func (s *stateObject) getOriginStorage(key common.Hash) (common.Hash, bool) {
 	}
 	// if L1 cache miss, try to get it from shared pool
 	if s.sharedOriginStorage != nil {
-		log.Info("debug: sharedOriginStorage not nil", "sharedOriginStorage enabled?", s.db.writeOnSharedStorage)
 		val, ok := s.sharedOriginStorage.Load(key)
 		if !ok {
-			log.Info("debug: get OriginStorage", "key", key, "value", val, "db address", fmt.Sprintf("%p", s))
 			return common.Hash{}, false
 		}
 		s.originStorage[key] = val.(common.Hash)
 		return val.(common.Hash), true
-	} else if s.db.writeOnSharedStorage {
-		log.Info("debug: sharedOriginStorage is nil", "sharedOriginStorage enabled?", s.db.writeOnSharedStorage)
 	}
 	return common.Hash{}, false
 }
 
 func (s *stateObject) setOriginStorage(key common.Hash, value common.Hash) {
 	if s.db.writeOnSharedStorage && s.sharedOriginStorage != nil {
-		log.Info("debug: set OriginStorage", "key", key, "value", value)
 		s.sharedOriginStorage.Store(key, value)
-	}
-	if s.db.writeOnSharedStorage && s.sharedOriginStorage == nil {
-		log.Info("debug: OriginStorage enabled?", "enabled", s.db.writeOnSharedStorage, "sharedOriginStorage is null", "true")
-	}
-	if !s.db.writeOnSharedStorage && s.sharedOriginStorage != nil {
-		log.Info("debug: OriginStorage enabled?", "enabled", s.db.writeOnSharedStorage, "sharedOriginStorage is null?", "not null")
 	}
 	s.originStorage[key] = value
 }
