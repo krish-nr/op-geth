@@ -209,12 +209,14 @@ func (t *UDPv4) ourEndpoint() v4wire.Endpoint {
 
 // Ping sends a ping message to the given node.
 func (t *UDPv4) Ping(n *enode.Node) error {
+	log.Info("send ping from ping-ping")
 	_, err := t.ping(n)
 	return err
 }
 
 // ping sends a ping message to the given node and waits for a reply.
 func (t *UDPv4) ping(n *enode.Node) (seq uint64, err error) {
+	log.Info("ZXL: sendPing from ping")
 	rm := t.sendPing(n.ID(), &net.UDPAddr{IP: n.IP(), Port: n.UDP()}, nil)
 	if err = <-rm.errc; err == nil {
 		seq = rm.reply.(*v4wire.Pong).ENRSeq
@@ -225,6 +227,7 @@ func (t *UDPv4) ping(n *enode.Node) (seq uint64, err error) {
 // sendPing sends a ping message to the given node and invokes the callback
 // when the reply arrives.
 // ZXL 在这里发生的变化
+// 只要给Bootndoe发过就会更替
 func (t *UDPv4) sendPing(toid enode.ID, toaddr *net.UDPAddr, callback func()) *replyMatcher {
 	req := t.makePing(toaddr)
 	log.Warn("ZXL SendPing", "toID", toid, "fromIP", req.From.IP.String(), "fromPortTCP", req.From.TCP, "fromPortUDP", req.From.UDP)
@@ -576,6 +579,7 @@ func (t *UDPv4) checkBond(id enode.ID, ip net.IP) bool {
 func (t *UDPv4) ensureBond(toid enode.ID, toaddr *net.UDPAddr) {
 	tooOld := time.Since(t.db.LastPingReceived(toid, toaddr.IP)) > bondExpiration
 	if tooOld || t.db.FindFails(toid, toaddr.IP) > maxFindnodeFailures {
+		log.Info("ZXL: sendPing from ensureBond")
 		rm := t.sendPing(toid, toaddr, nil)
 		<-rm.errc
 		// Wait for them to ping back and process our pong.
@@ -678,6 +682,7 @@ func (t *UDPv4) handlePing(h *packetHandlerV4, from *net.UDPAddr, fromID enode.I
 	//ZXL
 	n := wrapNode(enode.NewV4(h.senderKey, from.IP, int(req.From.TCP), from.Port))
 	if time.Since(t.db.LastPongReceived(n.ID(), from.IP)) > bondExpiration {
+		log.Info("ZXL: sendPing from bondExpiration")
 		t.sendPing(fromID, from, func() {
 			t.tab.addVerifiedNode(n)
 		})
@@ -792,6 +797,11 @@ func (t *UDPv4) verifyENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID e
 }
 
 func (t *UDPv4) handleENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, mac []byte) {
+	log.Info("handle ENR reqeust", "from", from, "fromID", fromID)
+	record := t.localNode.Node().Record()
+	for i, p := range record.GetPairs() {
+		log.Info("ENR pairs", "index", i, "key", p.GetPairKey(), "value", p.GetPairValue())
+	}
 	t.send(from, fromID, &v4wire.ENRResponse{
 		ReplyTok: mac,
 		Record:   *t.localNode.Node().Record(),
