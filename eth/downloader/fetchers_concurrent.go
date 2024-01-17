@@ -204,13 +204,13 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 				}
 
 				if requestRetried > 0 {
-					log.Info("Krish: queue reserve success", "request header", request.Headers[0].Number)
+					log.Info("Krish: queue reserve success")
 				}
 
 				// Fetch the chunk and make sure any errors return the hashes to the queue
 				req, err := queue.request(peer, request, responses)
 				if err != nil {
-					log.Info("Krish: queue.request error", "request header", request.Headers[0].Number, "err is", err)
+					log.Info("Krish: queue.request error", "err is", err)
 
 					// Sending the request failed, which generally means the peer
 					// was disconnected in between assignment and network send.
