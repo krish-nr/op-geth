@@ -210,8 +210,11 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 			// Make sure that we have peers available for fetching. If all peers have been tried
 			// and all failed throw an error
 			if !progressed && !throttled && len(pending) == 0 && len(idles) == d.peers.Len() && queued > 0 && !beaconMode {
+				log.Warn("Krish debug: all peers invalid")
 				return errPeersUnavailable
 			}
+
+			log.Warn("Krish debug: stuck here, all peers invalid for request")
 		}
 		// Wait for something to happen
 		select {
