@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/etherror"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -155,7 +155,7 @@ func nodeInfo(chain *core.BlockChain, network uint64) *NodeInfo {
 // connection is torn down.
 func Handle(backend Backend, peer *Peer) error {
 	for {
-		if err := handleMessage(backend, peer); errors.Is(err, downloader.ErrInvalidHeaderBatchAnchor) {
+		if err := handleMessage(backend, peer); errors.Is(err, etherror.ErrInvalidHeaderBatchAnchor) {
 			//ignore invalid header anchor
 			peer.Log().Warn("Message handling failed with invalid batch request anchor")
 		} else if err != nil {
