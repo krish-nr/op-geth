@@ -317,14 +317,12 @@ func (tab *Table) loadSeedNodes() {
 func (tab *Table) doRevalidate(done chan<- struct{}) {
 	defer func() { done <- struct{}{} }()
 
-	log.Info("do revalidate")
 	last, bi := tab.nodeToRevalidate()
 	if last == nil {
 		// No non-empty bucket found.
 		return
 	}
 
-	log.Info("do revalidate send ping")
 	// Ping the selected node and wait for a pong.
 	remoteSeq, err := tab.net.ping(unwrapNode(last))
 
@@ -413,13 +411,12 @@ func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *
 	liveNodes := &nodesByDistance{target: target}
 	for _, b := range &tab.buckets {
 		for _, n := range b.entries {
-			// 使用xorDistance函数计算节点n与目标ID的距离
 			distance := xorDistance(target, n.ID())
 			nodes.push(n, nresults)
 			if preferLive && n.livenessChecks > 0 {
 				liveNodes.push(n, nresults)
 			}
-			log.Info("ZXL Distance", "Node ID", n.ID(), "Target ID", target, "XOR Distance", distance)
+			log.Trace("Distance", "Node ID", n.ID(), "Target ID", target, "XOR Distance", distance)
 
 		}
 	}
@@ -449,6 +446,21 @@ func (tab *Table) getAllNodeIDs() []enode.ID {
 		}
 	}
 	return ids
+}
+
+// get node by given id
+func (tab *Table) getNodeByID(id enode.ID) enode.Node {
+	tab.mutex.Lock()
+	defer tab.mutex.Unlock()
+
+	for _, b := range tab.buckets {
+		for _, n := range b.entries {
+			if n.ID().String() == id.String() {
+				return n.Node
+			}
+		}
+	}
+	return enode.Node{}
 }
 
 // get all nodes ids
@@ -542,7 +554,7 @@ func (tab *Table) addSeenNode(n *node) {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addVerifiedNode(n *node) {
-	log.Info("ZXL: addVerifiedNode", "nodeIP", n.IP().String(), "nodeId", n.ID().String())
+	log.Trace("addVerifiedNode", "nodeIP", n.IP().String(), "nodeId", n.ID().String())
 	if !tab.isInitDone() {
 		return
 	}
@@ -552,9 +564,9 @@ func (tab *Table) addVerifiedNode(n *node) {
 	nodes := tab.getAllNodes()
 
 	for i, nodeIndex := range nodes {
-		log.Info("ZXL: current tab content", "index", i, "nodeId", nodeIndex.ID(), "nodeIP", nodeIndex.IP().String())
+		log.Trace("current tab content", "index", i, "nodeId", nodeIndex.ID(), "nodeIP", nodeIndex.IP().String())
 		for j, pair := range nodeIndex.Record().GetPairs() {
-			log.Info("ZXL: current node content", "node index", i, "pair index", j, "pairKey", pair.GetPairKey(), "pairValue", pair.GetPairValue())
+			log.Trace("current node content", "node index", i, "pair index", j, "pairKey", pair.GetPairKey(), "pairValue", pair.GetPairValue())
 
 		}
 	}
