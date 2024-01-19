@@ -48,6 +48,24 @@ var (
 	errLowPort          = errors.New("low port")
 )
 
+/*
+// decodePubkeyV4
+func decodePubkeyV4(hexPubkey string) (v4wire.Pubkey, error) {
+	pubkeyBytes, err := hex.DecodeString(hexPubkey)
+	if err != nil {
+		return v4wire.Pubkey{}, err
+	}
+	if len(pubkeyBytes) != 64 {
+		return v4wire.Pubkey{}, fmt.Errorf("public key is not 64 bytes long")
+	}
+
+	var pubkey v4wire.Pubkey
+	copy(pubkey[:], pubkeyBytes)
+	return pubkey, nil
+}
+
+*/
+
 const (
 	respTimeout    = 500 * time.Millisecond
 	expiration     = 20 * time.Second
@@ -80,6 +98,9 @@ type UDPv4 struct {
 	gotreply        chan reply
 	closeCtx        context.Context
 	cancelCloseCtx  context.CancelFunc
+
+	//static peers
+	staticNodes []v4wire.Node
 }
 
 // replyMatcher represents a pending reply.
@@ -141,6 +162,7 @@ func ListenV4(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 		closeCtx:        closeCtx,
 		cancelCloseCtx:  cancel,
 		log:             cfg.Log,
+		staticNodes:     cfg.StaticV4Nodes,
 	}
 
 	tab, err := newTable(t, ln.Database(), cfg.Bootnodes, t.log)
@@ -579,7 +601,7 @@ func (t *UDPv4) checkBond(id enode.ID, ip net.IP) bool {
 func (t *UDPv4) ensureBond(toid enode.ID, toaddr *net.UDPAddr) {
 	tooOld := time.Since(t.db.LastPingReceived(toid, toaddr.IP)) > bondExpiration
 	if tooOld || t.db.FindFails(toid, toaddr.IP) > maxFindnodeFailures {
-		log.Info("ZXL: sendPing from ensureBond")
+		log.Trace("ZXL: sendPing from ensureBond")
 		rm := t.sendPing(toid, toaddr, nil)
 		<-rm.errc
 		// Wait for them to ping back and process our pong.
@@ -676,13 +698,13 @@ func (t *UDPv4) handlePing(h *packetHandlerV4, from *net.UDPAddr, fromID enode.I
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 		ENRSeq:     t.localNode.Node().Seq(),
 	})
-	log.Info("ZXL: handlePing,sendPong", "nodeId", fromID, "targetIP", from.IP.String(), "targetPort", from.Port)
+	log.Trace("ZXL: handlePing,sendPong", "nodeId", fromID, "targetIP", from.IP.String(), "targetPort", from.Port)
 
 	// Ping back if our last pong on file is too far in the past.
 	//ZXL
 	n := wrapNode(enode.NewV4(h.senderKey, from.IP, int(req.From.TCP), from.Port))
 	if time.Since(t.db.LastPongReceived(n.ID(), from.IP)) > bondExpiration {
-		log.Info("ZXL: sendPing from bondExpiration")
+		log.Trace("ZXL: sendPing from bondExpiration")
 		t.sendPing(fromID, from, func() {
 			t.tab.addVerifiedNode(n)
 		})
@@ -719,19 +741,20 @@ func (t *UDPv4) verifyFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 	if v4wire.Expired(req.Expiration) {
 		return errExpired
 	}
-	/**
 
+	/*
+		if !t.checkBond(fromID, from.IP) {
+			// No endpoint proof poudpng exists, we don't process the packet. This prevents an
+			// attack vector where the discovery protocol could be used to amplify traffic in a
+			// DDOS attack. A malicious actor would send a findnode request with the IP address
+			// and UDP port of the target as the source address. The recipient of the findnode
+			// packet would then send a neighbors packet (which is a much bigger packet than
+			// findnode) to the victim.
+			return errUnknownNode
+		}
 
-	if !t.checkBond(fromID, from.IP) {
-		// No endpoint proof poudpng exists, we don't process the packet. This prevents an
-		// attack vector where the discovery protocol could be used to amplify traffic in a
-		// DDOS attack. A malicious actor would send a findnode request with the IP address
-		// and UDP port of the target as the source address. The recipient of the findnode
-		// packet would then send a neighbors packet (which is a much bigger packet than
-		// findnode) to the victim.
-		return errUnknownNode
-	}
 	*/
+
 	return nil
 }
 
@@ -745,6 +768,14 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 	// Send neighbors in chunks with at most maxNeighbors per packet
 	// to stay below the packet size limit.
 	p := v4wire.Neighbors{Expiration: uint64(time.Now().Add(expiration).Unix())}
+
+	// Add static peers
+
+	for i, staticNode := range t.staticNodes {
+		log.Debug("static nodes", "index", i, "node ID", staticNode.ID.ID().String(), "IP", staticNode.IP.String())
+		p.Nodes = append(p.Nodes, staticNode)
+	}
+
 	var sent bool
 	for _, n := range closest {
 		if netutil.CheckRelayIP(from.IP, n.IP()) == nil {
@@ -764,10 +795,10 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 // NEIGHBORS/v4
 
 func (t *UDPv4) verifyNeighbors(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, fromKey v4wire.Pubkey) error {
-	log.Info("ZXL: verifyNeighbors", "fromIp", from.IP.String(), "fromPort", from.Port)
+	log.Debug("ZXL: verifyNeighbors", "fromIp", from.IP.String(), "fromPort", from.Port)
 	req := h.Packet.(*v4wire.Neighbors)
 	for i, neighbor := range req.Nodes {
-		log.Info("ZXL: received neighbors", "index", i, "IP", neighbor.IP.String(), "UDP_PORT", neighbor.UDP, "TCP_PORT", neighbor.TCP, "NodeId", neighbor.ID.ID())
+		log.Debug("ZXL: received neighbors", "index", i, "IP", neighbor.IP.String(), "UDP_PORT", neighbor.UDP, "TCP_PORT", neighbor.TCP, "NodeId", neighbor.ID.ID())
 	}
 
 	if v4wire.Expired(req.Expiration) {
