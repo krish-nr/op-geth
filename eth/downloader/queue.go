@@ -493,9 +493,11 @@ func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common
 	// Short circuit if the pool has been depleted, or if the peer's already
 	// downloading something (sanity check not to corrupt state)
 	if taskQueue.Empty() {
+		log.Info("Krish: task queue empty")
 		return nil, false, true
 	}
 	if _, ok := pendPool[p.id]; ok {
+		log.Info("Krish: pendpool found peer")
 		return nil, false, false
 	}
 	// Retrieve a batch of tasks, skipping previously failed ones

@@ -192,6 +192,9 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 				// no more headers are available, or that the peer is known not to
 				// have them.
 				request, progress, throttle := queue.reserve(peer, queue.capacity(peer, d.peers.rates.TargetRoundTrip()))
+				if requestRetried > 0 {
+					log.Info("Krish: reserve result", "progress", progress, "throttle", throttle)
+				}
 				if progress {
 					progressed = true
 				}
@@ -200,6 +203,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 					throttleCounter.Inc(1)
 				}
 				if request == nil {
+					log.Info("Krish: request nil")
 					continue
 				}
 
@@ -225,6 +229,10 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 					continue
 				}
 				pending[peer.id] = req
+				log.Info("Krish: pending for all", "id", peer.id, "req", request.Headers[0].Number)
+				if requestRetried > 0 {
+					log.Warn("Krish: pending for retry", "id", peer.id, "req", request.Headers[0].Number)
+				}
 
 				ttl := d.peers.rates.TargetTimeout()
 				ordering[req] = timeouts.Size()
