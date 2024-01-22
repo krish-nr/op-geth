@@ -528,6 +528,7 @@ func (t *UDPv4) loop() {
 func (t *UDPv4) send(toaddr *net.UDPAddr, toid enode.ID, req v4wire.Packet) ([]byte, error) {
 	packet, hash, err := v4wire.Encode(t.priv, req)
 	if err != nil {
+		log.Info("error occurs", "ToId", toid, "err", err, "req", req.Name())
 		return hash, err
 	}
 	return hash, t.write(toaddr, toid, req.Name(), packet)
@@ -772,7 +773,7 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 
 	// Add static peers
 	for i, staticNode := range t.staticNodes {
-		log.Debug("static nodes", "index", i, "node ID", staticNode.ID.ID().String(), "IP", staticNode.IP.String())
+		log.Debug("static nodes", "fromID", fromID, "index", i, "node ID", staticNode.ID.ID().String(), "IP", staticNode.IP.String())
 		p.Nodes = append(p.Nodes, staticNode)
 	}
 
@@ -782,12 +783,14 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 			p.Nodes = append(p.Nodes, nodeToRPC(n))
 		}
 		if len(p.Nodes) == v4wire.MaxNeighbors {
+			log.Debug("sent due to reach MaxNeighbors", "fromID", fromID)
 			t.send(from, fromID, &p)
 			p.Nodes = p.Nodes[:0]
 			sent = true
 		}
 	}
 	if len(p.Nodes) > 0 || !sent {
+		log.Debug("Neighbors packet size before send", "count", len(p.Nodes), "fromID", fromID)
 		t.send(from, fromID, &p)
 	}
 }
@@ -837,10 +840,13 @@ func (t *UDPv4) verifyENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID e
 
 func (t *UDPv4) handleENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, mac []byte) {
 	log.Info("handle ENR reqeust", "from", from, "fromID", fromID)
-	record := t.localNode.Node().Record()
-	for i, p := range record.GetPairs() {
-		log.Info("ENR pairs", "index", i, "key", p.GetPairKey(), "value", p.GetPairValue())
-	}
+	//record := t.localNode.Node().Record()
+	/*
+		for i, p := range record.GetPairs() {
+			log.Info("ENR pairs", "index", i, "key", p.GetPairKey(), "value", p.GetPairValue())
+		}
+
+	*/
 	t.send(from, fromID, &v4wire.ENRResponse{
 		ReplyTok: mac,
 		Record:   *t.localNode.Node().Record(),
