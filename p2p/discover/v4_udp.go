@@ -528,6 +528,7 @@ func (t *UDPv4) loop() {
 func (t *UDPv4) send(toaddr *net.UDPAddr, toid enode.ID, req v4wire.Packet) ([]byte, error) {
 	packet, hash, err := v4wire.Encode(t.priv, req)
 	if err != nil {
+		log.Info("error occurs", "ToId", toid, "err", err, "req", req.Name())
 		return hash, err
 	}
 	return hash, t.write(toaddr, toid, req.Name(), packet)
@@ -536,11 +537,13 @@ func (t *UDPv4) send(toaddr *net.UDPAddr, toid enode.ID, req v4wire.Packet) ([]b
 func (t *UDPv4) write(toaddr *net.UDPAddr, toid enode.ID, what string, packet []byte) error {
 	_, err := t.conn.WriteToUDP(packet, toaddr)
 	t.log.Trace(">> "+what, "id", toid, "addr", toaddr, "err", err)
-	/*
-		if what == "FINDNODE/v4" {
-				log.Info("FINDNODE msg")
-			}
-	*/
+
+	if what == "NEIGHBORS/v4" {
+		if err != nil {
+			log.Info("NEIGHBORS/v4", "err", err)
+		}
+	}
+
 	return err
 }
 
@@ -577,7 +580,7 @@ func (t *UDPv4) readLoop(unhandled chan<- ReadPacket) {
 func (t *UDPv4) handlePacket(from *net.UDPAddr, buf []byte) error {
 	rawpacket, fromKey, hash, err := v4wire.Decode(buf)
 	if err != nil {
-		t.log.Debug("Bad discv4 packet", "addr", from, "err", err)
+		t.log.Debug("Bad discv4 packet", "addr", from, "port", from.Port, "err", err)
 		return err
 	}
 	packet := t.wrapPacket(rawpacket)
@@ -585,7 +588,7 @@ func (t *UDPv4) handlePacket(from *net.UDPAddr, buf []byte) error {
 	if err == nil && packet.preverify != nil {
 		err = packet.preverify(packet, from, fromID, fromKey)
 	}
-	t.log.Trace("<< "+packet.Name(), "id", fromID, "addr", from, "err", err)
+	t.log.Trace("<< "+packet.Name(), "id", fromID, "addr", from, "port", from.Port, "err", err)
 	if err == nil && packet.handle != nil {
 		packet.handle(packet, from, fromID, hash)
 	}
@@ -772,7 +775,7 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 
 	// Add static peers
 	for i, staticNode := range t.staticNodes {
-		log.Debug("static nodes", "index", i, "node ID", staticNode.ID.ID().String(), "IP", staticNode.IP.String())
+		log.Debug("static nodes", "fromID", fromID, "index", i, "node ID", staticNode.ID.ID().String(), "IP", staticNode.IP.String())
 		p.Nodes = append(p.Nodes, staticNode)
 	}
 
@@ -783,11 +786,13 @@ func (t *UDPv4) handleFindnode(h *packetHandlerV4, from *net.UDPAddr, fromID eno
 		}
 		if len(p.Nodes) == v4wire.MaxNeighbors {
 			t.send(from, fromID, &p)
+			log.Debug("sent due to reach MaxNeighbors", "fromID", fromID, "count", len(p.Nodes))
 			p.Nodes = p.Nodes[:0]
 			sent = true
 		}
 	}
 	if len(p.Nodes) > 0 || !sent {
+		log.Debug("Neighbors packet size before send", "count", len(p.Nodes), "fromID", fromID)
 		t.send(from, fromID, &p)
 	}
 }
@@ -837,10 +842,13 @@ func (t *UDPv4) verifyENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID e
 
 func (t *UDPv4) handleENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, mac []byte) {
 	log.Info("handle ENR reqeust", "from", from, "fromID", fromID)
-	record := t.localNode.Node().Record()
-	for i, p := range record.GetPairs() {
-		log.Info("ENR pairs", "index", i, "key", p.GetPairKey(), "value", p.GetPairValue())
-	}
+	//record := t.localNode.Node().Record()
+	/*
+		for i, p := range record.GetPairs() {
+			log.Info("ENR pairs", "index", i, "key", p.GetPairKey(), "value", p.GetPairValue())
+		}
+
+	*/
 	t.send(from, fromID, &v4wire.ENRResponse{
 		ReplyTok: mac,
 		Record:   *t.localNode.Node().Record(),

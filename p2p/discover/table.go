@@ -411,12 +411,12 @@ func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *
 	liveNodes := &nodesByDistance{target: target}
 	for _, b := range &tab.buckets {
 		for _, n := range b.entries {
-			distance := xorDistance(target, n.ID())
+			//distance := xorDistance(target, n.ID())
 			nodes.push(n, nresults)
 			if preferLive && n.livenessChecks > 0 {
 				liveNodes.push(n, nresults)
 			}
-			log.Trace("Distance", "Node ID", n.ID(), "Target ID", target, "XOR Distance", distance)
+			//log.Trace("Distance", "Node ID", n.ID(), "Target ID", target, "XOR Distance", distance)
 
 		}
 	}
@@ -561,15 +561,18 @@ func (tab *Table) addVerifiedNode(n *node) {
 	if n.ID() == tab.self().ID() {
 		return
 	}
-	nodes := tab.getAllNodes()
+	/*
+		nodes := tab.getAllNodes()
 
-	for i, nodeIndex := range nodes {
-		log.Trace("current tab content", "index", i, "nodeId", nodeIndex.ID(), "nodeIP", nodeIndex.IP().String())
-		for j, pair := range nodeIndex.Record().GetPairs() {
-			log.Trace("current node content", "node index", i, "pair index", j, "pairKey", pair.GetPairKey(), "pairValue", pair.GetPairValue())
+		for i, nodeIndex := range nodes {
+			log.Trace("current tab content", "index", i, "nodeId", nodeIndex.ID(), "nodeIP", nodeIndex.IP().String())
+			for j, pair := range nodeIndex.Record().GetPairs() {
+				log.Trace("current node content", "node index", i, "pair index", j, "pairKey", pair.GetPairKey(), "pairValue", pair.GetPairValue())
 
+			}
 		}
-	}
+
+	*/
 
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
