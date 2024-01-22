@@ -27,8 +27,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -209,11 +211,13 @@ var headSpace = make([]byte, headSize)
 // Decode reads a discovery v4 packet.
 func Decode(input []byte) (Packet, Pubkey, []byte, error) {
 	if len(input) < headSize+1 {
+		log.Error("input to small", "input size", len(input), "least size", headSize)
 		return nil, Pubkey{}, nil, ErrPacketTooSmall
 	}
 	hash, sig, sigdata := input[:macSize], input[macSize:headSize], input[headSize:]
 	shouldhash := crypto.Keccak256(input[macSize:])
 	if !bytes.Equal(hash, shouldhash) {
+		log.Error("hash mismatch", "hash", common.BytesToHash(hash).String(), "should hash", common.BytesToHash(shouldhash).String())
 		return nil, Pubkey{}, nil, ErrBadHash
 	}
 	fromKey, err := recoverNodeKey(crypto.Keccak256(input[headSize:]), sig)
