@@ -565,6 +565,7 @@ func (q *queue) reserveHeaders(p *peerConnection, count int, taskPool map[common
 	}
 	// Assemble and return the block download request
 	if len(send) == 0 {
+		log.Info("Krish: len(send) == 0")
 		return nil, progress, throttled
 	}
 	request := &fetchRequest{
