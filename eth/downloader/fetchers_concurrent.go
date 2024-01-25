@@ -248,7 +248,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 				return errPeersUnavailable
 			}
 			// Retry the unreserved task in next loop
-			if !progressed && !throttled && len(idles) == d.peers.Len() && len(pending) == 0 && queued > 0 && beaconMode {
+			if !progressed && !throttled && len(idles) == d.peers.Len() && len(pending) == 0 && queued == 1 && beaconMode {
 				log.Warn("All idle peers are not valid for current task, will retry ...")
 				requestRetried++
 				if requestRetried > maxRetries {
