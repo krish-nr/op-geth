@@ -252,7 +252,7 @@ func (d *Downloader) concurrentFetch(queue typedQueue, beaconMode bool) error {
 				log.Warn("All idle peers are not valid for current task, will retry ...")
 				requestRetried++
 				if requestRetried > maxRetries {
-					log.Info("max retry exceeded, cancel request")
+					log.Info("max retry exceeded, cancel request", "queue len", queued)
 					return errCanceled
 				}
 				time.Sleep(peersRetryInterval)
