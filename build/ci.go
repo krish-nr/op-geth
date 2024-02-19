@@ -53,6 +53,7 @@ import (
 	"time"
 
 	"github.com/cespare/cp"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/signify"
 	"github.com/ethereum/go-ethereum/internal/build"
@@ -224,6 +225,9 @@ func doInstall(cmdline []string) {
 
 	// We use -trimpath to avoid leaking local paths into the built executables.
 	gobuild.Args = append(gobuild.Args, "-trimpath")
+
+	// Add -race parameter
+	gobuild.Args = append(gobuild.Args, "-race")
 
 	// Show packages during build.
 	gobuild.Args = append(gobuild.Args, "-v")
