@@ -53,6 +53,7 @@ import (
 	"time"
 
 	"github.com/cespare/cp"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/signify"
 	"github.com/ethereum/go-ethereum/internal/build"
@@ -227,6 +228,9 @@ func doInstall(cmdline []string) {
 
 	// Show packages during build.
 	gobuild.Args = append(gobuild.Args, "-v")
+
+	// Show debug infos
+	gobuild.Args = append(gobuild.Args, "-gcflags=all=-N -l")
 
 	// Now we choose what we're even building.
 	// Default: collect all 'main' packages in cmd/ and build those.
