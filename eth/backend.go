@@ -157,8 +157,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		"trie_dirty_cache", common.StorageSize(config.TrieDirtyCache)*1024*1024,
 		"snapshot_cache", common.StorageSize(config.SnapshotCache)*1024*1024)
 	// Assemble the Ethereum object
-	chainDb, err := stack.OpenDatabaseWithFreezer(ChainData, config.DatabaseCache, config.DatabaseHandles,
-		config.DatabaseFreezer, ChainDBNamespace, false)
+	chainDb, err := stack.OpenAndMergeDatabase("chaindata", config.DatabaseCache, config.DatabaseHandles,
+		config.DatabaseFreezer, config.DatabaseDiff, ChainDBNamespace, false, config.PersistDiff, config.PruneAncientData)
 	if err != nil {
 		return nil, err
 	}
