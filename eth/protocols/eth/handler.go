@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -25,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/etherror"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -163,10 +161,12 @@ func Handle(backend Backend, peer *Peer) error {
 				// ignore no headers delivered
 				peer.Log().Warn("Message handling failed with no headers")
 		*/
-		case errors.Is(err, etherror.ErrHeaderBatchAnchorLow):
-			// ignore lower header anchor within tolerance
-			peer.Log().Warn("Message handling failed with lower batch anchor")
+		/*
+			case errors.Is(err, etherror.ErrHeaderBatchAnchorLow):
+				// ignore lower header anchor within tolerance
+				peer.Log().Warn("Message handling failed with lower batch anchor")
 
+		*/
 		case err != nil:
 			peer.Log().Debug("Message handling failed in `eth`", "err", err)
 			return err
