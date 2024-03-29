@@ -90,7 +90,8 @@ var (
 	blockPrefetchExecuteTimer   = metrics.NewRegisteredTimer("chain/prefetch/executes", nil)
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
 
-	mgaspsGauge = metrics.NewRegisteredGauge("chain/execution/mgasps", nil)
+	mgaspsGauge  = metrics.NewRegisteredGauge("chain/execution/mgasps", nil)
+	blockTxGuage = metrics.NewRegisteredGauge("chain/block/tx", nil)
 
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errChainStopped         = errors.New("blockchain is stopped")
@@ -1923,6 +1924,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 		blockWriteTimer.Update(time.Since(wstart) - statedb.AccountCommits - statedb.StorageCommits - statedb.SnapshotCommits - statedb.TrieDBCommits)
 		blockInsertTimer.UpdateSince(start)
+		blockTxGuage.Update(int64(block.Transactions().Len()))
 
 		// Report the import stats before returning the various results
 		stats.processed++

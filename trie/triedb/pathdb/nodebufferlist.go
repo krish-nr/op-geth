@@ -530,7 +530,7 @@ func (nf *nodebufferlist) proposedBlockReader(blockRoot common.Hash) (layer, err
 
 	if nf.count < nf.rsevMdNum {
 		proposedBlockReaderLessDifflayer.Mark(1)
-		log.Warn("failed to get propose block reader", "node buffer list count", nf.count)
+		log.Debug("failed to get propose block reader", "node buffer list count", nf.count)
 		return nil, errNoProposedBlockDifflayer
 	}
 	var diff *multiDifflayer
@@ -551,7 +551,7 @@ func (nf *nodebufferlist) proposedBlockReader(blockRoot common.Hash) (layer, err
 	nf.traverse(find)
 	if diff == nil {
 		proposedBlockReaderMismatch.Mark(1)
-		log.Error("proposed block state is not available", context...)
+		log.Debug("proposed block state is not available", context...)
 		return nil, fmt.Errorf("proposed block proof state %#x is not available", blockRoot)
 	}
 	proposedBlockReaderSuccess.Mark(1)
