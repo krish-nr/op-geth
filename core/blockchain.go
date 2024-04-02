@@ -76,7 +76,10 @@ var (
 	snapshotStorageReadTimer = metrics.NewRegisteredTimer("chain/snapshot/storage/reads", nil)
 	snapshotCommitTimer      = metrics.NewRegisteredTimer("chain/snapshot/commits", nil)
 
-	triedbCommitTimer = metrics.NewRegisteredTimer("chain/triedb/commits", nil)
+	triedbCommitTimer  = metrics.NewRegisteredTimer("chain/triedb/commits", nil)
+	trieAllCommitTimer = metrics.NewRegisteredTimer("chain/triedball/commits", nil)
+	CodeCommitTimer    = metrics.NewRegisteredTimer("chain/code/commits", nil)
+	MetaCommitTimer    = metrics.NewRegisteredTimer("chain/meta/commits", nil)
 
 	blockInsertTimer     = metrics.NewRegisteredTimer("chain/inserts", nil)
 	blockValidationTimer = metrics.NewRegisteredTimer("chain/validation", nil)
@@ -1444,14 +1447,20 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	//
 	// Note all the components of block(td, hash->number map, header, body, receipts)
 	// should be written atomically. BlockBatch is used for containing all components.
-	blockBatch := bc.db.NewBatch()
-	rawdb.WriteTd(blockBatch, block.Hash(), block.NumberU64(), externTd)
-	rawdb.WriteBlock(blockBatch, block)
-	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
-	rawdb.WritePreimages(blockBatch, state.Preimages())
-	if err := blockBatch.Write(); err != nil {
-		log.Crit("Failed to write block into disk", "err", err)
-	}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer func(start time.Time) { MetaCommitTimer.Update(time.Since(start)) }(time.Now())
+		blockBatch := bc.db.NewBatch()
+		rawdb.WriteTd(blockBatch, block.Hash(), block.NumberU64(), externTd)
+		rawdb.WriteBlock(blockBatch, block)
+		rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
+		rawdb.WritePreimages(blockBatch, state.Preimages())
+		if err := blockBatch.Write(); err != nil {
+			log.Crit("Failed to write block into disk", "err", err)
+		}
+		wg.Done()
+	}()
 	// Commit all cached state changes into underlying memory database.
 	root, err := state.Commit(block.NumberU64(), bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
@@ -1460,11 +1469,14 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// If node is running in path mode, skip explicit gc operation
 	// which is unnecessary in this mode.
 	if bc.triedb.Scheme() == rawdb.PathScheme {
+		wg.Wait()
 		return nil
 	}
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
-		return bc.triedb.Commit(root, false)
+		err = bc.triedb.Commit(root, false)
+		wg.Wait()
+		return err
 	}
 	// Full but not archive node, do proper garbage collection
 	bc.triedb.Reference(root, common.Hash{}) // metadata reference to keep trie alive
@@ -1473,6 +1485,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	// Flush limits are not considered for the first TriesInMemory blocks.
 	current := block.NumberU64()
 	if current <= TriesInMemory {
+		wg.Wait()
 		return nil
 	}
 	// If we exceeded our memory allowance, flush matured singleton nodes to disk
@@ -1514,6 +1527,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		}
 		bc.triedb.Dereference(root)
 	}
+	wg.Wait()
 	return nil
 }
 
@@ -1849,7 +1863,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 			// If we have a followup block, run that against the current state to pre-cache
 			// transactions and probabilistically some of the account/storage trie nodes.
-			var followupInterrupt atomic.Bool
+			//var followupInterrupt atomic.Bool
 			if !bc.cacheConfig.TrieCleanNoPrefetch {
 				if followup, err := it.peek(); followup != nil && err == nil {
 					throwaway, _ := state.New(parent.Root, bc.stateCache, bc.snaps)
@@ -1865,6 +1879,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 				}
 			}
 
+			statedb.SetExpectedStateRoot(block.Root())
 			// Process block using the parent state as reference point
 			pstart = time.Now()
 			receipts, logs, usedGas, err = bc.processor.Process(block, statedb, bc.vmConfig)
@@ -1921,8 +1936,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		storageCommitTimer.Update(statedb.StorageCommits)   // Storage commits are complete, we can mark them
 		snapshotCommitTimer.Update(statedb.SnapshotCommits) // Snapshot commits are complete, we can mark them
 		triedbCommitTimer.Update(statedb.TrieDBCommits)     // Trie database commits are complete, we can mark them
+		trieAllCommitTimer.Update(statedb.TrieAllCommits)
+		CodeCommitTimer.Update(statedb.CodeCommits)
 
-		blockWriteTimer.Update(time.Since(wstart) - statedb.AccountCommits - statedb.StorageCommits - statedb.SnapshotCommits - statedb.TrieDBCommits)
+		blockWriteTimer.Update(time.Since(wstart))
 		blockInsertTimer.UpdateSince(start)
 		blockTxGuage.Update(int64(block.Transactions().Len()))
 

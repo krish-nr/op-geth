@@ -1,33 +1,17 @@
 package gopool
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/panjf2000/ants/v2"
 )
 
-const (
-	// DefaultAntsPoolSize is the default expire time of ants pool.
-	defaultGoroutineExpireDuration = 10 * time.Second
-)
-
 var (
-	// defaultPool is the default ants pool for gopool package.
-	defaultPool *ants.Pool
-)
-
-func init() {
 	// Init a instance pool when importing ants.
-	pool, err := ants.NewPool(
-		ants.DefaultAntsPoolSize,
-		ants.WithExpiryDuration(defaultGoroutineExpireDuration),
-	)
-	if err != nil {
-		panic(err)
-	}
-
-	defaultPool = pool
-}
+	defaultPool, _   = ants.NewPool(ants.DefaultAntsPoolSize, ants.WithExpiryDuration(10*time.Second))
+	minNumberPerTask = 5
+)
 
 // Submit submits a task to pool.
 func Submit(task func()) error {
@@ -57,4 +41,14 @@ func Release() {
 // Reboot reboots the default pool.
 func Reboot() {
 	defaultPool.Reboot()
+}
+
+func Threads(tasks int) int {
+	threads := tasks / minNumberPerTask
+	if threads > runtime.NumCPU() {
+		threads = runtime.NumCPU()
+	} else if threads == 0 {
+		threads = 1
+	}
+	return threads
 }
