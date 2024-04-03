@@ -76,10 +76,15 @@ var (
 	snapshotStorageReadTimer = metrics.NewRegisteredTimer("chain/snapshot/storage/reads", nil)
 	snapshotCommitTimer      = metrics.NewRegisteredTimer("chain/snapshot/commits", nil)
 
-	triedbCommitTimer  = metrics.NewRegisteredTimer("chain/triedb/commits", nil)
+	triedbCommitTimer = metrics.NewRegisteredTimer("chain/triedb/commits", nil)
+
 	trieAllCommitTimer = metrics.NewRegisteredTimer("chain/triedball/commits", nil)
 	CodeCommitTimer    = metrics.NewRegisteredTimer("chain/code/commits", nil)
 	MetaCommitTimer    = metrics.NewRegisteredTimer("chain/meta/commits", nil)
+
+	ReceiptBloomValidateTimer = metrics.NewRegisteredTimer("chain/validate/receipt/bloom", nil)
+	ReceiptHashValidateTimer  = metrics.NewRegisteredTimer("chain/validate/receipt/hash", nil)
+	RootHashValidateTimer     = metrics.NewRegisteredTimer("chain/validate/roothash", nil)
 
 	blockInsertTimer     = metrics.NewRegisteredTimer("chain/inserts", nil)
 	blockValidationTimer = metrics.NewRegisteredTimer("chain/validation", nil)
@@ -1450,7 +1455,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		defer func(start time.Time) { MetaCommitTimer.Update(time.Since(start)) }(time.Now())
+		if metrics.EnabledExpensive {
+			defer func(start time.Time) { MetaCommitTimer.Update(time.Since(start)) }(time.Now())
+		}
 		blockBatch := bc.db.NewBatch()
 		rawdb.WriteTd(blockBatch, block.Hash(), block.NumberU64(), externTd)
 		rawdb.WriteBlock(blockBatch, block)

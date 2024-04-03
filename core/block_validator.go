@@ -19,11 +19,13 @@ package core
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -151,23 +153,59 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 	if block.GasUsed() != usedGas {
 		return fmt.Errorf("invalid gas used (remote: %d local: %d)", block.GasUsed(), usedGas)
 	}
-	// Validate the received block's bloom with the one derived from the generated receipts.
-	// For valid blocks this should always validate to true.
-	rbloom := types.CreateBloom(receipts)
-	if rbloom != header.Bloom {
-		return fmt.Errorf("invalid bloom (remote: %x  local: %x)", header.Bloom, rbloom)
+
+	validateFuns := []func() error{
+		func() error {
+			if metrics.EnabledExpensive {
+				defer func(start time.Time) { ReceiptBloomValidateTimer.Update(time.Since(start)) }(time.Now())
+			}
+			// Validate the received block's bloom with the one derived from the generated receipts.
+			// For valid blocks this should always validate to true.
+			rbloom := types.CreateBloom(receipts)
+			if rbloom != header.Bloom {
+				return fmt.Errorf("invalid bloom (remote: %x  local: %x)", header.Bloom, rbloom)
+			}
+			return nil
+		},
+		func() error {
+			if metrics.EnabledExpensive {
+				defer func(start time.Time) { ReceiptHashValidateTimer.Update(time.Since(start)) }(time.Now())
+			}
+			// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, Rn]]))
+			receiptSha := types.DeriveSha(receipts, trie.NewStackTrie(nil))
+			if receiptSha != header.ReceiptHash {
+				return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
+			}
+			return nil
+		},
+		func() error {
+			if metrics.EnabledExpensive {
+				defer func(start time.Time) { RootHashValidateTimer.Update(time.Since(start)) }(time.Now())
+			}
+			// Validate the state root against the received state root and throw
+			// an error if they don't match.
+			if root := statedb.IntermediateRoot(v.config.IsEIP158(header.Number)); header.Root != root {
+				return fmt.Errorf("invalid merkle root (remote: %x local: %x) dberr: %w", header.Root, root, statedb.Error())
+			}
+			return nil
+		},
 	}
-	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, Rn]]))
-	receiptSha := types.DeriveSha(receipts, trie.NewStackTrie(nil))
-	if receiptSha != header.ReceiptHash {
-		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
+	validateRes := make(chan error, len(validateFuns))
+	for _, f := range validateFuns {
+		tmpFunc := f
+		go func() {
+			validateRes <- tmpFunc()
+		}()
 	}
-	// Validate the state root against the received state root and throw
-	// an error if they don't match.
-	if root := statedb.IntermediateRoot(v.config.IsEIP158(header.Number)); header.Root != root {
-		return fmt.Errorf("invalid merkle root (remote: %x local: %x) dberr: %w", header.Root, root, statedb.Error())
+
+	var err error
+	for i := 0; i < len(validateFuns); i++ {
+		r := <-validateRes
+		if r != nil && err == nil {
+			err = r
+		}
 	}
-	return nil
+	return err
 }
 
 // CalcGasLimit computes the gas limit of the next block after parent. It aims
