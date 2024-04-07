@@ -56,6 +56,7 @@ type nodebufferlist struct {
 	base      *multiDifflayer // Collect the nodes of nodebufferlist and write to disk.
 	persistID uint64          // The last state id that have written to disk.
 	baseMux   sync.RWMutex    // The mutex of base multiDifflayer and persistID.
+	flushMux  sync.RWMutex    // The mutex of flush base multiDifflayer for reorg corner case.
 
 	isFlushing   atomic.Bool // Flag indicates writing disk under background.
 	stopFlushing atomic.Bool // Flag stops writing disk under background.
@@ -197,8 +198,10 @@ func (nf *nodebufferlist) revert(db ethdb.KeyValueReader, nodes map[common.Hash]
 	// hang user read/write and background write,
 	nf.mux.Lock()
 	nf.baseMux.Lock()
+	nf.flushMux.Lock()
 	defer nf.mux.Unlock()
 	defer nf.baseMux.Unlock()
+	defer nf.flushMux.Unlock()
 
 	merge := func(buffer *multiDifflayer) bool {
 		if err := nf.base.commit(buffer.root, buffer.id, buffer.block, buffer.layers, buffer.nodes); err != nil {
@@ -230,8 +233,10 @@ func (nf *nodebufferlist) flush(db ethdb.KeyValueStore, clean *fastcache.Cache, 
 	// hang user read/write and background write
 	nf.mux.Lock()
 	nf.baseMux.Lock()
+	nf.flushMux.Lock()
 	defer nf.mux.Unlock()
 	defer nf.baseMux.Unlock()
+	defer nf.flushMux.Unlock()
 
 	nf.stopFlushing.Store(true)
 	defer nf.stopFlushing.Store(false)
@@ -482,6 +487,8 @@ func (nf *nodebufferlist) diffToBase() {
 
 // backgroundFlush flush base node buffer to disk.
 func (nf *nodebufferlist) backgroundFlush() {
+	nf.flushMux.Lock()
+	defer nf.flushMux.Unlock()
 	nf.baseMux.RLock()
 	persistID := nf.persistID + nf.base.layers
 	nf.baseMux.RUnlock()
