@@ -500,7 +500,12 @@ func (s *skeleton) sync(head *types.Header) (*types.Header, error) {
 				log.Debug("Beacon sync merged subchains")
 				return nil, errSyncMerged
 			}
-			// We still have work to do, loop and repeat
+		// We still have work to do, loop and repeat
+
+		default:
+			log.Debug("Select loop timeout, no events received")
+			// sleep a short time
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 }
@@ -911,7 +916,18 @@ func (s *skeleton) revertRequest(req *headerRequest) {
 
 	// Remove the request from the tracked set and mark the task as not-pending,
 	// ready for rescheduling
+	log.Warn("ZXL: revert request", "tasknum", (s.scratchHead-req.head)/requestHeaders, "peerId", req.peer)
 	s.scratchOwners[(s.scratchHead-req.head)/requestHeaders] = ""
+	// retry
+	//s.idles[req.peer] = s.getPeerConnectionByPeerId(req.peer) // not here but need here
+}
+
+func (s *skeleton) getPeerConnectionByPeerId(peer string) *peerConnection {
+	peerConn, ok := s.peers.peers[peer]
+	if !ok {
+		return nil
+	}
+	return peerConn
 }
 
 func (s *skeleton) processResponse(res *headerResponse) (linked bool, merged bool) {
