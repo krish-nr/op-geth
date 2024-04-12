@@ -933,6 +933,64 @@ func (s *StateDB) AccountsIntermediateRoot() {
 	wg.Wait()
 }
 
+func (s *StateDB) StateIntermediateRootOrigin() common.Hash {
+
+	// If there was a trie prefetcher operating, it gets aborted and irrevocably
+	// modified after we start retrieving tries. Remove it from the statedb after
+	// this round of use.
+	//
+	// This is weird pre-byzantium since the first tx runs with a prefetcher and
+	// the remainder without, but pre-byzantium even the initial prefetcher is
+	// useless, so no sleep lost.
+	prefetcher := s.prefetcher
+	if s.prefetcher != nil {
+		defer func() {
+			s.prefetcher.close()
+			s.prefetcher = nil
+		}()
+	}
+	// Although naively it makes sense to retrieve the account trie and then do
+	// the contract storage and account updates sequentially, that short circuits
+	// the account prefetcher. Instead, let's process all the storage updates
+	// first, giving the account prefetches just a few more milliseconds of time
+	// to pull useful data from disk.
+	for addr := range s.stateObjectsPending {
+		if obj := s.stateObjects[addr]; !obj.deleted {
+			obj.updateRoot()
+		}
+	}
+	// Now we're about to start to write changes to the trie. The trie is so far
+	// _untouched_. We can check with the prefetcher, if it can give us a trie
+	// which has the same root, but also has some content loaded into it.
+	if prefetcher != nil {
+		if trie := prefetcher.trie(common.Hash{}, s.originalRoot); trie != nil {
+			s.trie = trie
+		}
+	}
+	usedAddrs := make([][]byte, 0, len(s.stateObjectsPending))
+	for addr := range s.stateObjectsPending {
+		if obj := s.stateObjects[addr]; obj.deleted {
+			s.deleteStateObject(obj)
+			s.AccountDeleted += 1
+		} else {
+			s.updateStateObject(obj)
+			s.AccountUpdated += 1
+		}
+		usedAddrs = append(usedAddrs, common.CopyBytes(addr[:])) // Copy needed for closure
+	}
+	if prefetcher != nil {
+		prefetcher.used(common.Hash{}, s.originalRoot, usedAddrs)
+	}
+	if len(s.stateObjectsPending) > 0 {
+		s.stateObjectsPending = make(map[common.Address]struct{})
+	}
+	// Track the amount of time wasted on hashing the account trie
+	if metrics.EnabledExpensive {
+		defer func(start time.Time) { s.AccountHashes += time.Since(start) }(time.Now())
+	}
+	return s.trie.Hash()
+}
+
 func (s *StateDB) StateIntermediateRoot() common.Hash {
 	// If there was a trie prefetcher operating, it gets aborted and irrevocably
 	// modified after we start retrieving tries. Remove it from the statedb after
@@ -1238,6 +1296,8 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			defer func(start time.Time) { s.TrieAllCommits += time.Since(start) }(time.Now())
 		}
 		if s.stateRoot = s.StateIntermediateRoot(); s.expectedRoot != s.stateRoot {
+			originRoot := s.StateIntermediateRootOrigin()
+			log.Warn("OriginRoot And expected root", "origin", originRoot.String(), "expected", s.expectedRoot.String())
 			log.Error("Invalid merkle root", "remote", s.expectedRoot, "local", s.stateRoot)
 			return fmt.Errorf("invalid merkle root (remote: %x local: %x)", s.expectedRoot, s.stateRoot)
 		}
