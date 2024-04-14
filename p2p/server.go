@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -38,7 +40,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -425,6 +426,14 @@ type sharedUDPConn struct {
 	unhandled chan discover.ReadPacket
 }
 
+// NewSharedUDPConn inits a new SharedUDPConn instance
+func NewSharedUDPConn(conn *net.UDPConn, unhandled chan discover.ReadPacket) *sharedUDPConn {
+	return &sharedUDPConn{
+		UDPConn:   conn,
+		unhandled: unhandled,
+	}
+}
+
 // ReadFromUDP implements discover.UDPConn
 func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
 	packet, ok := <-s.unhandled
@@ -549,7 +558,7 @@ func (srv *Server) setupDiscovery() error {
 	// connection, so v5 can read unhandled messages from v4.
 	if srv.DiscoveryV4 && srv.DiscoveryV5 {
 		unhandled = make(chan discover.ReadPacket, 100)
-		sconn = &sharedUDPConn{conn, unhandled}
+		sconn = NewSharedUDPConn(conn, unhandled)
 	}
 
 	// Start discovery services.

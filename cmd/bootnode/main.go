@@ -19,16 +19,18 @@ package main
 
 import (
 	"crypto/ecdsa"
-	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/discover/v4wire"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -38,17 +40,19 @@ import (
 
 func main() {
 	var (
-		listenAddr  = flag.String("addr", ":30301", "listen address")
-		genKey      = flag.String("genkey", "", "generate a node key")
-		writeAddr   = flag.Bool("writeaddress", false, "write out the node's public key and quit")
-		nodeKeyFile = flag.String("nodekey", "", "private key filename")
-		nodeKeyHex  = flag.String("nodekeyhex", "", "private key as hex (for testing)")
-		natdesc     = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|pmp:<IP>|extip:<IP>)")
-		netrestrict = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
-		runv5       = flag.Bool("v5", false, "run a v5 topic discovery bootnode")
-		verbosity   = flag.Int("verbosity", 3, "log verbosity (0-5)")
-		vmodule     = flag.String("vmodule", "", "log verbosity pattern")
-		network     = flag.String("network", "", "testnet/mainnet")
+		listenAddr     = flag.String("addr", ":30301", "listen address")
+		genKey         = flag.String("genkey", "", "generate a node key")
+		writeAddr      = flag.Bool("writeaddress", false, "write out the node's public key and quit")
+		nodeKeyFile    = flag.String("nodekey", "", "private key filename")
+		nodeKeyHex     = flag.String("nodekeyhex", "", "private key as hex (for testing)")
+		natdesc        = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|pmp:<IP>|extip:<IP>)")
+		netrestrict    = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
+		runv5          = flag.Bool("v5", true, "run a v5 topic discovery bootnode")
+		runv4          = flag.Bool("v4", false, "run a v4 topic discovery bootnode")
+		verbosity      = flag.Int("verbosity", 3, "log verbosity (0-5)")
+		vmodule        = flag.String("vmodule", "", "log verbosity pattern")
+		network        = flag.String("network", "", "testnet/mainnet")
+		staticP2pNodes = flag.String("staticnodes", "", "static p2p nodes for discovery")
 
 		nodeKey *ecdsa.PrivateKey
 		err     error
@@ -94,10 +98,17 @@ func main() {
 		}
 	}
 
-	if *network == "testnet" {
-		staticV4Nodes = staticV4NodesTestnet
+	if *staticP2pNodes == "" {
+		if *network == "testnet" {
+			staticV4Nodes = staticV4NodesTestnet
+		} else {
+			staticV4Nodes = staticV4NodesMainnet
+		}
 	} else {
-		staticV4Nodes = staticV4NodesMainnet
+		parsedNodes, err := parseStaticNodes(*staticP2pNodes)
+		if err == nil {
+			staticV4Nodes = parsedNodes
+		}
 	}
 
 	if *writeAddr {
@@ -141,30 +152,26 @@ func main() {
 		sconn     discover.UDPConn = conn
 		unhandled chan discover.ReadPacket
 	)
+	if !*runv5 && !*runv4 {
+		utils.Fatalf("%v", fmt.Errorf("at least one protocol need to be set (v4/v5)"))
+	}
 	// If both versions of discovery are running, setup a shared
 	// connection, so v5 can read unhandled messages from v4.
-	if *runv5 {
+	if *runv5 && *runv4 {
 		unhandled = make(chan discover.ReadPacket, 100)
-		sconn = &sharedUDPConn{conn, unhandled}
+		sconn = p2p.NewSharedUDPConn(conn, unhandled)
 	}
-
-	/*
-		原始
-			cfg := discover.Config{
-				PrivateKey:  nodeKey,
-				NetRestrict: restrictList,
-			}
-
-	*/
 
 	// Start discovery services.
 	if *runv5 {
 		cfg := discover.Config{
-			PrivateKey:  nodeKey,
-			NetRestrict: restrictList,
-			Unhandled:   unhandled,
+			PrivateKey:    nodeKey,
+			NetRestrict:   restrictList,
+			Unhandled:     unhandled,
+			StaticV4Nodes: staticV4Nodes,
 		}
 		_, err := discover.ListenV4(conn, ln, cfg)
+		log.Info("discv4 protocol enabled")
 		if err != nil {
 			utils.Fatalf("%v", err)
 		}
@@ -175,6 +182,7 @@ func main() {
 			NetRestrict: restrictList,
 		}
 		_, err = discover.ListenV5(sconn, ln, cfg)
+		log.Info("discv5 protocol enabled")
 		if err != nil {
 			utils.Fatalf("%v", err)
 		}
@@ -264,29 +272,59 @@ func doPortMapping(natm nat.Interface, ln *enode.LocalNode, addr *net.UDPAddr) *
 	return extaddr
 }
 
-// shared connection
-// sharedUDPConn implements a shared connection. Write sends messages to the underlying connection while read returns
-// messages that were found unprocessable and sent to the unhandled channel by the primary listener.
-type sharedUDPConn struct {
-	*net.UDPConn
-	unhandled chan discover.ReadPacket
-}
+// parseStaticNodes parses a comma-separated list of node URLs into a slice of Node structs.
+func parseStaticNodes(nodeList string) ([]v4wire.Node, error) {
+	nodes := strings.Split(nodeList, ",")
+	var result []v4wire.Node
 
-// ReadFromUDP implements discover.UDPConn
-func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
-	packet, ok := <-s.unhandled
-	if !ok {
-		return 0, nil, errors.New("connection was closed")
-	}
-	l := len(packet.Data)
-	if l > len(b) {
-		l = len(b)
-	}
-	copy(b[:l], packet.Data[:l])
-	return l, packet.Addr, nil
-}
+	for _, node := range nodes {
+		// Trim spaces that might surround the node entry
+		node = strings.TrimSpace(node)
+		if node == "" {
+			continue
+		}
 
-// Close implements discover.UDPConn
-func (s *sharedUDPConn) Close() error {
-	return nil
+		// Parse the node URL
+		if !strings.HasPrefix(node, "enode://") {
+			return nil, fmt.Errorf("parse error: node does not start with 'enode://'")
+		}
+
+		// Separate the node ID from the IP and port
+		atPos := strings.Index(node, "@")
+		if atPos == -1 {
+			return nil, fmt.Errorf("parse error: '@' not found in node string")
+		}
+
+		idPart := node[8:atPos] // skip "enode://"
+		ipPortPart := node[atPos+1:]
+
+		colonPos := strings.LastIndex(ipPortPart, ":")
+		if colonPos == -1 {
+			return nil, fmt.Errorf("parse error: ':' not found in IP:port part")
+		}
+
+		ipStr := ipPortPart[:colonPos]
+		portStr := ipPortPart[colonPos+1:]
+
+		port, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: invalid port number")
+		}
+
+		ip := net.ParseIP(ipStr)
+		if ip == nil {
+			return nil, fmt.Errorf("parse error: invalid IP address")
+		}
+
+		nodeStruct := v4wire.Node{
+			IP:  ip,
+			UDP: uint16(port),
+			TCP: uint16(port),
+			ID:  decodePubkeyV4(idPart),
+		}
+
+		result = append(result, nodeStruct)
+	}
+
+	return result, nil
 }
