@@ -19,6 +19,7 @@ package main
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -123,19 +124,63 @@ func main() {
 	}
 
 	printNotice(&nodeKey.PublicKey, *listenerAddr)
-	cfg := discover.Config{
-		PrivateKey:  nodeKey,
-		NetRestrict: restrictList,
+
+	//support v4 & v5
+	var (
+		sconn     discover.UDPConn = conn
+		unhandled chan discover.ReadPacket
+	)
+	// If both versions of discovery are running, setup a shared
+	// connection, so v5 can read unhandled messages from v4.
+	if *runv5 {
+		unhandled = make(chan discover.ReadPacket, 100)
+		sconn = &sharedUDPConn{conn, unhandled}
+	}
+
+	/*
+		原始
+			cfg := discover.Config{
+				PrivateKey:  nodeKey,
+				NetRestrict: restrictList,
+			}
+
+	*/
+
+	// Start discovery services.
+	if *runv5 {
+		cfg := discover.Config{
+			PrivateKey:  nodeKey,
+			NetRestrict: restrictList,
+			Unhandled:   unhandled,
+		}
+		_, err := discover.ListenV4(conn, ln, cfg)
+		if err != nil {
+			utils.Fatalf("%v", err)
+		}
 	}
 	if *runv5 {
-		if _, err := discover.ListenV5(conn, ln, cfg); err != nil {
-			utils.Fatalf("%v", err)
+		cfg := discover.Config{
+			PrivateKey:  nodeKey,
+			NetRestrict: restrictList,
 		}
-	} else {
-		if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
+		_, err = discover.ListenV5(sconn, ln, cfg)
+		if err != nil {
 			utils.Fatalf("%v", err)
 		}
 	}
+
+	/*
+		if *runv5 {
+			if _, err := discover.ListenV5(conn, ln, cfg); err != nil {
+				utils.Fatalf("%v", err)
+			}
+		} else {
+			if _, err := discover.ListenUDP(conn, ln, cfg); err != nil {
+				utils.Fatalf("%v", err)
+			}
+		}
+
+	*/
 
 	select {}
 }
@@ -206,4 +251,31 @@ func doPortMapping(natm nat.Interface, ln *enode.LocalNode, addr *net.UDPAddr) *
 	}()
 
 	return extaddr
+}
+
+// shared connection
+// sharedUDPConn implements a shared connection. Write sends messages to the underlying connection while read returns
+// messages that were found unprocessable and sent to the unhandled channel by the primary listener.
+type sharedUDPConn struct {
+	*net.UDPConn
+	unhandled chan discover.ReadPacket
+}
+
+// ReadFromUDP implements discover.UDPConn
+func (s *sharedUDPConn) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
+	packet, ok := <-s.unhandled
+	if !ok {
+		return 0, nil, errors.New("connection was closed")
+	}
+	l := len(packet.Data)
+	if l > len(b) {
+		l = len(b)
+	}
+	copy(b[:l], packet.Data[:l])
+	return l, packet.Addr, nil
+}
+
+// Close implements discover.UDPConn
+func (s *sharedUDPConn) Close() error {
+	return nil
 }
