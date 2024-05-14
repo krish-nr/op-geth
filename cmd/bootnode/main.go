@@ -36,32 +36,51 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
+	"golang.org/x/exp/slog"
+	"io"
 )
 
 func main() {
 	var (
-		listenAddr  = flag.String("addr", ":30301", "listen address")
-		genKey      = flag.String("genkey", "", "generate a node key")
-		writeAddr   = flag.Bool("writeaddress", false, "write out the node's public key and quit")
-		nodeKeyFile = flag.String("nodekey", "", "private key filename")
-		nodeKeyHex  = flag.String("nodekeyhex", "", "private key as hex (for testing)")
-		natdesc     = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|pmp:<IP>|extip:<IP>)")
-		netrestrict = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
-		runv5       = flag.Bool("v5", true, "run a v5 topic discovery bootnode")
-		runv4       = flag.Bool("v4", false, "run a v4 topic discovery bootnode")
-		verbosity   = flag.Int("verbosity", 3, "log verbosity (0-5)")
-		vmodule     = flag.String("vmodule", "", "log verbosity pattern")
+		listenAddr     = flag.String("addr", ":30301", "listen address")
+		genKey         = flag.String("genkey", "", "generate a node key")
+		writeAddr      = flag.Bool("writeaddress", false, "write out the node's public key and quit")
+		nodeKeyFile    = flag.String("nodekey", "", "private key filename")
+		nodeKeyHex     = flag.String("nodekeyhex", "", "private key as hex (for testing)")
+		natdesc        = flag.String("nat", "none", "port mapping mechanism (any|none|upnp|pmp|pmp:<IP>|extip:<IP>)")
+		netrestrict    = flag.String("netrestrict", "", "restrict network communication to the given IP networks (CIDR masks)")
+		runv5          = flag.Bool("v5", true, "run a v5 topic discovery bootnode")
+		runv4          = flag.Bool("v4", false, "run a v4 topic discovery bootnode")
+		verbosity      = flag.Int("verbosity", 3, "log verbosity (0-5)")
+		vmodule        = flag.String("vmodule", "", "log verbosity pattern")
 		network        = flag.String("network", "", "testnet/mainnet")
 		staticP2pNodes = flag.String("staticnodes", "", "static p2p nodes for discovery")
-		nodeKey *ecdsa.PrivateKey
-		err     error
+		nodeKey        *ecdsa.PrivateKey
+		err            error
 	)
 
 	var staticV4Nodes []v4wire.Node
 
 	flag.Parse()
 
-	glogger := log.NewGlogHandler(log.NewTerminalHandler(os.Stderr, false))
+	//set log
+	var (
+		handler        slog.Handler
+		glogger        *log.GlogHandler
+		terminalOutput = io.Writer(os.Stderr)
+		output         io.Writer
+		logOutputFile  io.WriteCloser
+	)
+
+	logFile := "/Users/zhaoxueliang/opbnb_project_pr/geth_bootnode.log"
+	if logOutputFile, err = os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err != nil {
+		utils.Fatalf("err: %v", err)
+	}
+	output = io.MultiWriter(logOutputFile, terminalOutput)
+
+	handler = log.LogfmtHandler(output)
+	glogger = log.NewGlogHandler(handler)
+
 	slogVerbosity := log.FromLegacyLevel(*verbosity)
 	glogger.Verbosity(slogVerbosity)
 	glogger.Vmodule(*vmodule)
@@ -168,9 +187,9 @@ func main() {
 	// Start discovery services.
 	if *runv4 {
 		cfg := discover.Config{
-			PrivateKey:  nodeKey,
-			NetRestrict: restrictList,
-			Unhandled:   unhandled,
+			PrivateKey:    nodeKey,
+			NetRestrict:   restrictList,
+			Unhandled:     unhandled,
 			StaticV4Nodes: staticV4Nodes,
 		}
 		_, err := discover.ListenV4(conn, ln, cfg)
