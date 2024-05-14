@@ -326,11 +326,14 @@ func (t *UDPv5) lookupWorker(destNode *node, target enode.ID) ([]*node, error) {
 		err   error
 	)
 	var r []*enode.Node
+	log.Info("ZXL: findnode from lookupWorker")
 	r, err = t.findnode(unwrapNode(destNode), dists)
 	if errors.Is(err, errClosed) {
 		return nil, err
 	}
-	for _, n := range r {
+	log.Info("ZXL nodes num", "total", len(r))
+	for i, n := range r {
+		log.Info("ZXL Nodes", "num", i, "IP", n.IP().String(), "id", n.ID().String())
 		if n.ID() != t.Self().ID() {
 			nodes.push(wrapNode(n), findnodeResultLimit)
 		}
@@ -371,6 +374,7 @@ func (t *UDPv5) ping(n *enode.Node) (uint64, error) {
 
 // RequestENR requests n's record.
 func (t *UDPv5) RequestENR(n *enode.Node) (*enode.Node, error) {
+	log.Info("ZXL: findnode from requestENR")
 	nodes, err := t.findnode(n, []uint{0})
 	if err != nil {
 		return nil, err
@@ -400,10 +404,18 @@ func (t *UDPv5) waitForNodes(c *callV5, distances []uint) ([]*enode.Node, error)
 		select {
 		case responseP := <-c.ch:
 			response := responseP.(*v5wire.Nodes)
-			for _, record := range response.Nodes {
+			log.Info("ZXL nodes response", "totalnum", len(response.Nodes))
+			for i, record := range response.Nodes {
+
+				nodeTest, err := enode.New(t.validSchemes, record)
+				if err == nil {
+					t.log.Debug("ZXL nodes response", "index", i, "nodeId", nodeTest.ID(), "ip", nodeTest.IP().String(), "port", nodeTest.UDP())
+					continue
+				}
+
 				node, err := t.verifyResponseNode(c, record, distances, seen)
 				if err != nil {
-					t.log.Debug("Invalid record in "+response.Name(), "id", c.node.ID(), "err", err)
+					t.log.Debug("Invalid record in "+response.Name(), "id", c.node.ID(), "ip", c.node.IP().String(), "port", c.node.UDP(), "err", err)
 					continue
 				}
 				nodes = append(nodes, node)
@@ -865,7 +877,8 @@ func (t *UDPv5) collectTableNodes(rip net.IP, distances []uint, limit int) []*en
 		for _, n := range t.tab.appendLiveNodes(dist, bn[:0]) {
 			// Apply some pre-checks to avoid sending invalid nodes.
 			// Note liveness is checked by appendLiveNodes.
-			if netutil.CheckRelayIP(rip, n.IP()) != nil {
+			if err := netutil.CheckRelayIP(rip, n.IP()); err != nil {
+				log.Error("ZXL", "err", err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -880,6 +893,7 @@ func (t *UDPv5) collectTableNodes(rip net.IP, distances []uint, limit int) []*en
 // packNodes creates NODES response packets for the given node list.
 func packNodes(reqid []byte, nodes []*enode.Node) []*v5wire.Nodes {
 	if len(nodes) == 0 {
+		log.Info("ZXL packNodes num 0")
 		return []*v5wire.Nodes{{ReqID: reqid, RespCount: 1}}
 	}
 

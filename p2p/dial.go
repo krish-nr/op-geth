@@ -232,8 +232,10 @@ loop:
 		slots := d.freeDialSlots()
 		slots -= d.startStaticDials(slots)
 		if slots > 0 {
+			log.Info("ZXL: nodesCh yes!")
 			nodesCh = d.nodesIn
 		} else {
+			log.Info("ZXL: nodesCh no!")
 			nodesCh = nil
 		}
 		d.rearmHistoryTimer()
@@ -244,6 +246,7 @@ loop:
 			if err := d.checkDial(node); err != nil {
 				d.log.Trace("Discarding dial candidate", "id", node.ID(), "ip", node.IP(), "reason", err)
 			} else {
+				log.Info("ZXL: start dial from nodesCh", "node", node.IP())
 				d.startDial(newDialTask(node, dynDialedConn))
 			}
 
@@ -401,6 +404,7 @@ func (d *dialScheduler) startStaticDials(n int) (started int) {
 	for started = 0; started < n && len(d.staticPool) > 0; started++ {
 		idx := d.rand.Intn(len(d.staticPool))
 		task := d.staticPool[idx]
+		log.Info("ZXL: static dial")
 		d.startDial(task)
 		d.removeFromStaticPool(idx)
 	}
