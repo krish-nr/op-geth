@@ -38,7 +38,7 @@ import (
 
 const (
 	lookupRequestLimit      = 3  // max requests against a single node during lookup
-	findnodeResultLimit     = 16 // applies in FINDNODE handler
+	findnodeResultLimit     = 20 // applies in FINDNODE handler
 	totalNodesResponseLimit = 5  // applies in waitForNodes
 
 	respTimeoutV5 = 700 * time.Millisecond
