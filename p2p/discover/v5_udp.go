@@ -410,7 +410,6 @@ func (t *UDPv5) waitForNodes(c *callV5, distances []uint) ([]*enode.Node, error)
 				nodeTest, err := enode.New(t.validSchemes, record)
 				if err == nil {
 					t.log.Debug("ZXL nodes response", "index", i, "nodeId", nodeTest.ID(), "ip", nodeTest.IP().String(), "port", nodeTest.UDP())
-					continue
 				}
 
 				node, err := t.verifyResponseNode(c, record, distances, seen)
@@ -884,6 +883,7 @@ func (t *UDPv5) collectTableNodes(rip net.IP, distances []uint, limit int) []*en
 			}
 			nodes = append(nodes, n)
 			if len(nodes) >= limit {
+				log.Error("ZXL: exceeded the limit size", "current size", len(nodes), "limit", limit)
 				return nodes
 			}
 		}
