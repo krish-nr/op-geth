@@ -36,8 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
-	"golang.org/x/exp/slog"
-	"io"
 )
 
 func main() {
@@ -64,7 +62,7 @@ func main() {
 	flag.Parse()
 
 	//set log
-	var (
+	/*var (
 		handler        slog.Handler
 		glogger        *log.GlogHandler
 		terminalOutput = io.Writer(os.Stderr)
@@ -80,6 +78,9 @@ func main() {
 
 	handler = log.LogfmtHandler(output)
 	glogger = log.NewGlogHandler(handler)
+
+	*/
+	glogger := log.NewGlogHandler(log.NewTerminalHandler(os.Stderr, false))
 
 	slogVerbosity := log.FromLegacyLevel(*verbosity)
 	glogger.Verbosity(slogVerbosity)
