@@ -77,8 +77,6 @@ type StateDB struct {
 	expectedRoot common.Hash // The state root in the block header
 	stateRoot    common.Hash // The calculation result of IntermediateRoot
 
-	fullProcessed bool
-
 	// These maps hold the state changes (including the corresponding
 	// original value) that occurred in this **block**.
 	AccountMux     sync.Mutex                                // Mutex for accounts access
@@ -243,11 +241,6 @@ func (s *StateDB) StopPrefetcher() {
 		s.prefetcher.close()
 		s.prefetcher = nil
 	}
-}
-
-// Mark that the block is full processed
-func (s *StateDB) MarkFullProcessed() {
-	s.fullProcessed = true
 }
 
 // setError remembers the first non-nil error it is called with.
@@ -1295,12 +1288,12 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 		// which will affect performance, so it is discarded
 		//storageTrieNodesUpdated int
 		//storageTrieNodesDeleted int
-		
+
 		nodes      = trienode.NewMergedNodeSet()
 		incomplete map[common.Address]struct{}
 	)
 
-	if !s.fullProcessed {
+	if block == 0 {
 		s.stateRoot = s.IntermediateRoot(deleteEmptyObjects)
 	}
 
@@ -1325,7 +1318,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			if metrics.EnabledExpensive {
 				defer func(start time.Time) { s.TrieCommits += time.Since(start) }(time.Now())
 			}
-			if s.fullProcessed {
+			if block != 0 {
 				if s.stateRoot = s.StateIntermediateRoot(); s.expectedRoot != s.stateRoot {
 					log.Error("Invalid merkle root", "remote", s.expectedRoot, "local", s.stateRoot)
 					return fmt.Errorf("invalid merkle root (remote: %x local: %x)", s.expectedRoot, s.stateRoot)
@@ -1367,12 +1360,16 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			for addr := range s.stateObjectsDirty {
 				if obj := s.stateObjects[addr]; !obj.deleted {
 					tasks <- func() {
-						// Write any storage changes in the state object to its storage trie
-						if set, err := obj.commit(); err != nil {
-							taskResults <- taskResult{err, nil}
-							return
+						if !s.noTrie {
+							// Write any storage changes in the state object to its storage trie
+							if set, err := obj.commit(); err != nil {
+								taskResults <- taskResult{err, nil}
+								return
+							} else {
+								taskResults <- taskResult{nil, set}
+							}
 						} else {
-							taskResults <- taskResult{nil, set}
+							taskResults <- taskResult{nil, nil}
 						}
 
 					}
@@ -1397,45 +1394,46 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 			}
 			close(finishCh)
 
-			var start time.Time
-			if metrics.EnabledExpensive {
-				start = time.Now()
-			}
-			root, set, err := s.trie.Commit(true)
-			if err != nil {
-				return err
-			}
-			// Merge the dirty nodes of account trie into global set
-			if set != nil {
-				if err := nodes.Merge(set); err != nil {
-					return err
-				}
-				accountTrieNodesUpdated, accountTrieNodesDeleted = set.Size()
-			}
-			if metrics.EnabledExpensive {
-				s.AccountCommits += time.Since(start)
-			}
-
-			origin := s.originalRoot
-			if origin == (common.Hash{}) {
-				origin = types.EmptyRootHash
-			}
-
-			if root != origin {
-				start := time.Now()
-				set := triestate.New(s.accountsOrigin, s.storagesOrigin, incomplete)
-				if err := s.db.TrieDB().Update(root, origin, block, nodes, set); err != nil {
-					return err
-				}
-				s.originalRoot = root
+			if !s.noTrie {
+				var start time.Time
 				if metrics.EnabledExpensive {
-					s.TrieDBCommits += time.Since(start)
+					start = time.Now()
 				}
-				if s.onCommit != nil {
-					s.onCommit(set)
+				root, set, err := s.trie.Commit(true)
+				if err != nil {
+					return err
+				}
+				// Merge the dirty nodes of account trie into global set
+				if set != nil {
+					if err := nodes.Merge(set); err != nil {
+						return err
+					}
+					accountTrieNodesUpdated, accountTrieNodesDeleted = set.Size()
+				}
+				if metrics.EnabledExpensive {
+					s.AccountCommits += time.Since(start)
+				}
+
+				origin := s.originalRoot
+				if origin == (common.Hash{}) {
+					origin = types.EmptyRootHash
+				}
+
+				if root != origin {
+					start := time.Now()
+					set := triestate.New(s.accountsOrigin, s.storagesOrigin, incomplete)
+					if err := s.db.TrieDB().Update(root, origin, block, nodes, set); err != nil {
+						return err
+					}
+					s.originalRoot = root
+					if metrics.EnabledExpensive {
+						s.TrieDBCommits += time.Since(start)
+					}
+					if s.onCommit != nil {
+						s.onCommit(set)
+					}
 				}
 			}
-
 			wg.Wait()
 			return nil
 		},
