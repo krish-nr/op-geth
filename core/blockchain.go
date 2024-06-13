@@ -408,6 +408,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 			if bc.triedb.Scheme() == rawdb.PathScheme {
 				recoverable, _ := bc.triedb.Recoverable(diskRoot)
 				if !bc.HasState(diskRoot) && !recoverable {
+					log.Info("ZXL: diskRoot reset")
 					diskRoot = bc.triedb.Head()
 				}
 			}
@@ -761,13 +762,14 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 					newHeadBlock = bc.GetBlock(newHeadBlock.ParentHash(), newHeadBlock.NumberU64()-1) // Keep rewinding
 				}
 			}
-			rawdb.WriteHeadBlockHash(db, newHeadBlock.Hash())
+			rawdb.WriteHeadBlockHash(db, newHeadBlock.Hash()) //这里已经写入的是带MPT的高度
 
 			// Degrade the chain markers if they are explicitly reverted.
 			// In theory we should update all in-memory markers in the
 			// last step, however the direction of SetHead is from high
 			// to low, so it's safe to update in-memory markers directly.
 			bc.currentBlock.Store(newHeadBlock.Header())
+			log.Info("ZXL: rewind header now is", "header", newHeadBlock.Header().Number.Uint64())
 			headBlockGauge.Update(int64(newHeadBlock.NumberU64()))
 
 			// The head state is missing, which is only possible in the path-based
@@ -833,6 +835,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	// touching the header chain altogether, unless the freezer is broken
 	if repair {
 		if target, force := updateFn(bc.db, bc.CurrentBlock()); force {
+			log.Info("ZXL: force set head", "head", target.Number.Uint64())
 			bc.hc.SetHead(target.Number.Uint64(), updateFn, delFn)
 		}
 	} else {
@@ -857,15 +860,47 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	bc.miningStateCache.Purge()
 	bc.futureBlocks.Purge()
 
-	// Clear safe block, finalized block if needed
-	if safe := bc.CurrentSafeBlock(); safe != nil && head < safe.Number.Uint64() {
-		log.Warn("SetHead invalidated safe block")
-		bc.SetSafe(nil)
+	log.Info("ZXL: after setHeadBeyondRoot", "currenthead", bc.CurrentBlock().Number.Uint64())
+
+	//修改
+
+	if bc.triedb.Scheme() == rawdb.PathScheme {
+		headHeaderUpdated := bc.CurrentBlock()
+		var safe *types.Header
+		if safe = bc.CurrentSafeBlock(); safe != nil && headHeaderUpdated.Number.Uint64() < safe.Number.Uint64() {
+			log.Warn("SetHead invalidated safe block", "before", safe.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
+			bc.SetSafe(headHeaderUpdated)
+		}
+		log.Info("ZXL", "safe before set", safe.Number.Uint64(), "after", bc.CurrentSafeBlock().Number.Uint64())
+
+		var finalized *types.Header
+
+		if finalized = bc.CurrentFinalBlock(); finalized != nil && headHeaderUpdated.Number.Uint64() < finalized.Number.Uint64() {
+			log.Error("SetHead invalidated finalized block", "before", finalized.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
+			bc.SetFinalized(headHeaderUpdated)
+		}
+		log.Info("ZXL", "finalized before set", finalized.Number.Uint64(), "after", bc.CurrentFinalBlock().Number.Uint64())
+	} else {
+		// Clear safe block, finalized block if needed
+		var safe *types.Header
+		if safe = bc.CurrentSafeBlock(); safe != nil && head < safe.Number.Uint64() {
+			log.Warn("SetHead invalidated safe block")
+			bc.SetSafe(nil)
+		}
+		log.Info("ZXL", "safe after set", safe.Number.Uint64(), "head", head)
+
+		var finalized *types.Header
+
+		if finalized = bc.CurrentFinalBlock(); finalized != nil && head < finalized.Number.Uint64() {
+			log.Error("SetHead invalidated finalized block")
+			bc.SetFinalized(nil)
+		}
+		log.Info("ZXL", "finalized after set", finalized.Number.Uint64(), "head", head)
+
 	}
-	if finalized := bc.CurrentFinalBlock(); finalized != nil && head < finalized.Number.Uint64() {
-		log.Error("SetHead invalidated finalized block")
-		bc.SetFinalized(nil)
-	}
+
+	log.Info("ZXL", "rootNumber", rootNumber)
+
 	return rootNumber, bc.loadLastState()
 }
 
