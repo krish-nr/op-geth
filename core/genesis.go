@@ -594,7 +594,7 @@ func (g *Genesis) Commit(db ethdb.Database, triedb *trie.Database) (*types.Block
 	rawdb.WriteReceipts(db.BlockStore(), block.Hash(), block.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(db.BlockStore(), block.Hash(), block.NumberU64())
 	rawdb.WriteHeadBlockHash(db.BlockStore(), block.Hash())
-	rawdb.WriteHeadFastBlockHash(db, block.Hash())
+	rawdb.WriteHeadFastBlockHash(db.BlockStore(), block.Hash())
 	rawdb.WriteHeadHeaderHash(db.BlockStore(), block.Hash())
 	rawdb.WriteChainConfig(db, block.Hash(), config)
 	return block, nil
