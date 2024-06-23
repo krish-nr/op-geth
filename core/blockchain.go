@@ -562,7 +562,7 @@ func (bc *BlockChain) loadLastState() error {
 		return bc.Reset()
 	}
 	// Everything seems to be fine, set as the head block
-	bc.currentBlock.Store(headBlock.Header())
+	bc.currentBlock.Store(headBlock.Header()) //这里是获取后改的地方
 	headBlockGauge.Update(int64(headBlock.NumberU64()))
 
 	// Restore the last known head header
@@ -589,7 +589,9 @@ func (bc *BlockChain) loadLastState() error {
 	// Note: the safe block is not stored on disk and it is set to the last
 	// known finalized block on startup
 	if head := rawdb.ReadFinalizedBlockHash(bc.db); head != (common.Hash{}) {
+		log.Info("ZXL: finalized from db exist")
 		if block := bc.GetBlockByHash(head); block != nil {
+			log.Info("ZXL: finalized from db", "finalized", block.Number().Uint64())
 			bc.currentFinalBlock.Store(block.Header())
 			headFinalizedBlockGauge.Update(int64(block.NumberU64()))
 			bc.currentSafeBlock.Store(block.Header())
@@ -604,7 +606,9 @@ func (bc *BlockChain) loadLastState() error {
 		headerTd = bc.GetTd(headHeader.Hash(), headHeader.Number.Uint64())
 		blockTd  = bc.GetTd(headBlock.Hash(), headBlock.NumberU64())
 	)
+	//headHeader是DB里读出来的
 	if headHeader.Hash() != headBlock.Hash() {
+		//这里确实不一样，header是没有回退过的，和打点结果一样，header没有回退保持为重启前
 		log.Info("Loaded most recent local header", "number", headHeader.Number, "hash", headHeader.Hash(), "td", headerTd, "age", common.PrettyAge(time.Unix(int64(headHeader.Time), 0)))
 	}
 	log.Info("Loaded most recent local block", "number", headBlock.Number(), "hash", headBlock.Hash(), "td", blockTd, "age", common.PrettyAge(time.Unix(int64(headBlock.Time()), 0)))
@@ -728,13 +732,19 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 				beyondRoot := (root == common.Hash{}) // Flag whether we're beyond the requested root (no root, always true)
 
 				for {
+					log.Info("ZXL: step into for loop", "newHeadBlock", newHeadBlock.Number().Uint64())
+
 					// If a root threshold was requested but not yet crossed, check
 					if root != (common.Hash{}) && !beyondRoot && newHeadBlock.Root() == root {
+						log.Info("ZXL: step into newHeadBlock.Root() == root")
 						beyondRoot, rootNumber = true, newHeadBlock.NumberU64()
 					}
 					if !bc.HasState(newHeadBlock.Root()) && !bc.stateRecoverable(newHeadBlock.Root()) {
 						log.Trace("Block state missing, rewinding further", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
 						if pivot == nil || newHeadBlock.NumberU64() > *pivot {
+							if pivot == nil {
+								log.Info("ZXL step into null pivot", "newHeadBlock", newHeadBlock.Number().Uint64())
+							}
 							parent := bc.GetBlock(newHeadBlock.ParentHash(), newHeadBlock.NumberU64()-1)
 							if parent != nil {
 								newHeadBlock = parent
@@ -756,6 +766,8 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 							}
 							log.Debug("Rewound to block with state", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
 						}
+						log.Info("ZXL step into found newhead logic", "newHeadBlock", newHeadBlock.Number().Uint64())
+
 						break
 					}
 					log.Debug("Skipping block with threshold state", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash(), "root", newHeadBlock.Root())
@@ -764,11 +776,17 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 			}
 			rawdb.WriteHeadBlockHash(db, newHeadBlock.Hash()) //这里已经写入的是带MPT的高度
 
+			/*
+				rawdb.WriteFinalizedBlockHash()
+				rawdb.WriteCanonicalHash()
+			*/
+
 			// Degrade the chain markers if they are explicitly reverted.
 			// In theory we should update all in-memory markers in the
 			// last step, however the direction of SetHead is from high
 			// to low, so it's safe to update in-memory markers directly.
-			bc.currentBlock.Store(newHeadBlock.Header())
+			bc.currentBlock.Store(newHeadBlock.Header()) //这里是改的地方
+			//这里是内存还是数据库？像是内存
 			log.Info("ZXL: rewind header now is", "header", newHeadBlock.Header().Number.Uint64())
 			headBlockGauge.Update(int64(newHeadBlock.NumberU64()))
 
@@ -784,6 +802,8 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		// Rewind the snap block in a simpleton way to the target head
 		if currentSnapBlock := bc.CurrentSnapBlock(); currentSnapBlock != nil && header.Number.Uint64() < currentSnapBlock.Number.Uint64() {
 			newHeadSnapBlock := bc.GetBlock(header.Hash(), header.Number.Uint64())
+			log.Info("ZXL: step into snap logic", "newHeadSnapBlock", newHeadSnapBlock.Number().Uint64())
+
 			// If either blocks reached nil, reset to the genesis state
 			if newHeadSnapBlock == nil {
 				newHeadSnapBlock = bc.genesisBlock
@@ -808,6 +828,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		if headNumber+1 < frozen {
 			wipe = pivot == nil || headNumber >= *pivot
 		}
+		//TODO 这里加上清理逻辑
 		return headHeader, wipe // Only force wipe if full synced
 	}
 	// Rewind the header chain, deleting all block bodies until then
@@ -868,7 +889,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		headHeaderUpdated := bc.CurrentBlock()
 		var safe *types.Header
 		if safe = bc.CurrentSafeBlock(); safe != nil && headHeaderUpdated.Number.Uint64() < safe.Number.Uint64() {
-			log.Warn("SetHead invalidated safe block", "before", safe.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
+			log.Warn("1.SetHead invalidated safe block", "before", safe.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
 			bc.SetSafe(headHeaderUpdated)
 		}
 		log.Info("ZXL", "safe before set", safe.Number.Uint64(), "after", bc.CurrentSafeBlock().Number.Uint64())
@@ -876,7 +897,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		var finalized *types.Header
 
 		if finalized = bc.CurrentFinalBlock(); finalized != nil && headHeaderUpdated.Number.Uint64() < finalized.Number.Uint64() {
-			log.Error("SetHead invalidated finalized block", "before", finalized.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
+			log.Error("1.SetHead invalidated finalized block", "before", finalized.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
 			bc.SetFinalized(headHeaderUpdated)
 		}
 		log.Info("ZXL", "finalized before set", finalized.Number.Uint64(), "after", bc.CurrentFinalBlock().Number.Uint64())
@@ -884,7 +905,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		// Clear safe block, finalized block if needed
 		var safe *types.Header
 		if safe = bc.CurrentSafeBlock(); safe != nil && head < safe.Number.Uint64() {
-			log.Warn("SetHead invalidated safe block")
+			log.Warn("2.SetHead invalidated safe block")
 			bc.SetSafe(nil)
 		}
 		log.Info("ZXL", "safe after set", safe.Number.Uint64(), "head", head)
@@ -892,7 +913,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 		var finalized *types.Header
 
 		if finalized = bc.CurrentFinalBlock(); finalized != nil && head < finalized.Number.Uint64() {
-			log.Error("SetHead invalidated finalized block")
+			log.Error("2.SetHead invalidated finalized block")
 			bc.SetFinalized(nil)
 		}
 		log.Info("ZXL", "finalized after set", finalized.Number.Uint64(), "head", head)
