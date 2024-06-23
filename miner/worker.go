@@ -765,6 +765,7 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 		}
 	}
 	if err != nil {
+		log.Error("zxl error occured here", "missing block", parent.Number.Uint64())
 		return nil, err
 	}
 	state.StartPrefetcher("miner")
