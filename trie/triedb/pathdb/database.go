@@ -221,6 +221,7 @@ func New(diskdb ethdb.Database, config *Config) *Database {
 
 // Reader retrieves a layer belonging to the given state root.
 func (db *Database) Reader(root common.Hash) (layer, error) {
+	log.Info("zxl get mpt", "root", root)
 	l := db.tree.get(root)
 	if l == nil {
 		r, err := db.tree.bottom().buffer.proposedBlockReader(root)

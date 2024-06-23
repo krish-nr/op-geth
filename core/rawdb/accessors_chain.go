@@ -359,10 +359,16 @@ func ReadHeaderRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValu
 		// the canonical data.
 		data, _ = reader.Ancient(ChainFreezerHeaderTable, number)
 		if len(data) > 0 && crypto.Keccak256Hash(data) == hash {
+			if number == 3942690 {
+				log.Info("zxl: read header 3942690 Ancient")
+			}
 			return nil
 		}
 		// If not, try reading from leveldb
 		data, _ = db.Get(headerKey(number, hash))
+		if number == 3942690 {
+			log.Info("zxl: read header 3942690 db")
+		}
 		return nil
 	})
 	return data
@@ -383,6 +389,9 @@ func HasHeader(db ethdb.Reader, hash common.Hash, number uint64) bool {
 func ReadHeader(db ethdb.Reader, hash common.Hash, number uint64) *types.Header {
 	data := ReadHeaderRLP(db, hash, number)
 	if len(data) == 0 {
+		if number == 3942690 {
+			log.Info("zxl: 3942690 header nil")
+		}
 		return nil
 	}
 	header := new(types.Header)
@@ -450,10 +459,16 @@ func ReadBodyRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue 
 		// Check if the data is in ancients
 		if isCanon(reader, number, hash) {
 			data, _ = reader.Ancient(ChainFreezerBodiesTable, number)
+			if number == 3942690 {
+				log.Info("zxl: read 3942690 from Ancient")
+			}
 			return nil
 		}
 		// If not, try reading from leveldb
 		data, _ = db.Get(blockBodyKey(number, hash))
+		if number == 3942690 {
+			log.Info("zxl: read 3942690 from Ancient")
+		}
 		return nil
 	})
 	return data
@@ -772,10 +787,16 @@ func ReadLogs(db ethdb.Reader, hash common.Hash, number uint64) [][]*types.Log {
 func ReadBlock(db ethdb.Reader, hash common.Hash, number uint64) *types.Block {
 	header := ReadHeader(db, hash, number)
 	if header == nil {
+		if number == 3942690 {
+			log.Debug("3242690 header nil")
+		}
 		return nil
 	}
 	body := ReadBody(db, hash, number)
 	if body == nil {
+		if number == 3942690 {
+			log.Debug("3242690 body nil")
+		}
 		return nil
 	}
 	return types.NewBlockWithHeader(header).WithBody(body.Transactions, body.Uncles).WithWithdrawals(body.Withdrawals)
