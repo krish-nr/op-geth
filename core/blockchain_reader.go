@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
@@ -160,10 +161,15 @@ func (bc *BlockChain) HasFastBlock(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := bc.blockCache.Get(hash); ok {
+		log.Debug("zxl get from cache", "block", number)
 		return block
 	}
 	block := rawdb.ReadBlock(bc.db, hash, number)
+	log.Debug("zxl get from db not cache", "block", number)
 	if block == nil {
+		if number == 3942690 {
+			log.Info("zxl: block 3942690 nil")
+		}
 		return nil
 	}
 	// Cache the found block for next time and return
