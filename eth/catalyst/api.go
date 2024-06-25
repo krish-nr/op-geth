@@ -571,11 +571,21 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 	log.Info("zxl current safe", "safe", api.eth.BlockChain().CurrentSafeBlock().Number)
 	log.Info("zxl current header", "header", api.eth.BlockChain().CurrentHeader().Number)
 
-	if block := api.eth.BlockChain().GetBlockByHash(params.BlockHash); block != nil {
+	//ZXL 这里改条件
+	if api.eth.BlockChain().HasBlockAndState(params.BlockHash, params.Number) {
 		log.Warn("Ignoring already known beacon payload", "number", params.Number, "hash", params.BlockHash, "age", common.PrettyAge(time.Unix(int64(block.Time()), 0)))
 		hash := block.Hash()
 		return engine.PayloadStatusV1{Status: engine.VALID, LatestValidHash: &hash}, nil
 	}
+
+	/*
+		if block := api.eth.BlockChain().GetBlockByHash(params.BlockHash); block != nil {
+			log.Warn("Ignoring already known beacon payload", "number", params.Number, "hash", params.BlockHash, "age", common.PrettyAge(time.Unix(int64(block.Time()), 0)))
+			hash := block.Hash()
+			return engine.PayloadStatusV1{Status: engine.VALID, LatestValidHash: &hash}, nil
+		}
+
+	*/
 	// If this block was rejected previously, keep rejecting it
 	if res := api.checkInvalidAncestor(block.Hash(), block.Hash()); res != nil {
 		return *res, nil
