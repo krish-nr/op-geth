@@ -881,6 +881,8 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	bc.miningStateCache.Purge()
 	bc.futureBlocks.Purge()
 
+	bc.db.TruncateHead()
+
 	log.Info("ZXL: after setHeadBeyondRoot", "currenthead", bc.CurrentBlock().Number.Uint64())
 
 	//修改
