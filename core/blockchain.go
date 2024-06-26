@@ -390,6 +390,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
 	if !bc.NoTries() && !bc.HasState(head.Root) {
+		log.Info("zxl 现在有啦哈哈哈哈")
 		if head.Number.Uint64() == 0 {
 			// The genesis state is missing, which is only possible in the path-based
 			// scheme. This situation occurs when the initial state sync is not finished
@@ -412,6 +413,9 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 					diskRoot = bc.triedb.Head()
 				}
 			}
+
+			log.Info("zxl get header and block", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
+
 			if diskRoot != (common.Hash{}) {
 				log.Warn("Head state missing, repairing", "number", head.Number, "hash", head.Hash(), "snaproot", diskRoot)
 
@@ -786,7 +790,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 			// last step, however the direction of SetHead is from high
 			// to low, so it's safe to update in-memory markers directly.
 			bc.currentBlock.Store(newHeadBlock.Header()) //这里是改的地方
-			//这里是内存还是数据库？像是内存
+			//这里是内存
 			log.Info("ZXL: rewind header now is", "header", newHeadBlock.Header().Number.Uint64())
 			headBlockGauge.Update(int64(newHeadBlock.NumberU64()))
 
@@ -833,9 +837,11 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	}
 	// Rewind the header chain, deleting all block bodies until then
 	delFn := func(db ethdb.KeyValueWriter, hash common.Hash, num uint64) {
+		log.Info("zxl step into del fn")
 		// Ignore the error here since light client won't hit this path
 		frozen, _ := bc.db.Ancients()
 		if num+1 <= frozen {
+			log.Info("zxl step into frozen del fn")
 			// Truncate all relative data(header, total difficulty, body, receipt
 			// and canonical hash) from ancient store.
 			if _, err := bc.db.TruncateHead(num); err != nil {
@@ -844,6 +850,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 			// Remove the hash <-> number mapping from the active store.
 			rawdb.DeleteHeaderNumber(db, hash)
 		} else {
+			log.Info("zxl step into non-frozen del fn")
 			// Remove relative body and receipts from the active store.
 			// The header, total difficulty and canonical hash will be
 			// removed in the hc.SetHead function.
@@ -859,6 +866,9 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 			log.Info("ZXL: force set head", "head", target.Number.Uint64())
 			bc.hc.SetHead(target.Number.Uint64(), updateFn, delFn)
 		}
+		//zxl reset anyway
+		//bc.hc.SetHead(target.Number.Uint64(), updateFn, delFn)
+
 	} else {
 		// Rewind the chain to the requested head and keep going backwards until a
 		// block with a state is found or snap sync pivot is passed
