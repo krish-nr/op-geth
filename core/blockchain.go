@@ -396,7 +396,17 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	if headHeader.Number.Uint64() > head.Number.Uint64() {
 		log.Info("zxl step into SetHead")
 		bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
+
+		//想办法
+		bc.SetSafe(head)
+		bc.SetFinalized(head)
+
 	}
+
+	//想办法
+	bc.SetSafe(head)
+	bc.SetFinalized(head)
+
 	log.Info("zxl get header and block after seethead", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
 	if !bc.NoTries() && !bc.HasState(head.Root) {
