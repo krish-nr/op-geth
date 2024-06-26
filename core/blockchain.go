@@ -390,6 +390,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
 	if !bc.NoTries() && !bc.HasState(head.Root) {
+		log.Info("zxl 现在有啦哈哈哈哈")
 		if head.Number.Uint64() == 0 {
 			// The genesis state is missing, which is only possible in the path-based
 			// scheme. This situation occurs when the initial state sync is not finished
@@ -786,7 +787,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 			// last step, however the direction of SetHead is from high
 			// to low, so it's safe to update in-memory markers directly.
 			bc.currentBlock.Store(newHeadBlock.Header()) //这里是改的地方
-			//这里是内存还是数据库？像是内存
+			//这里是内存
 			log.Info("ZXL: rewind header now is", "header", newHeadBlock.Header().Number.Uint64())
 			headBlockGauge.Update(int64(newHeadBlock.NumberU64()))
 
@@ -859,6 +860,8 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 			log.Info("ZXL: force set head", "head", target.Number.Uint64())
 			bc.hc.SetHead(target.Number.Uint64(), updateFn, delFn)
 		}
+		//reset anyway
+
 	} else {
 		// Rewind the chain to the requested head and keep going backwards until a
 		// block with a state is found or snap sync pivot is passed
