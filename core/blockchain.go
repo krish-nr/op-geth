@@ -389,10 +389,17 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// Make sure the state associated with the block is available, or log out
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
+	headHeader := bc.hc.CurrentHeader()
+
 	log.Info("zxl get header and block", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
+	if headHeader.Number.Uint64() > head.Number.Uint64() {
+		log.Info("zxl step into SetHead")
+		bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
+	}
+	log.Info("zxl get header and block after seethead", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
+
 	if !bc.NoTries() && !bc.HasState(head.Root) {
-		log.Info("zxl 现在有啦哈哈哈哈")
 		if head.Number.Uint64() == 0 {
 			// The genesis state is missing, which is only possible in the path-based
 			// scheme. This situation occurs when the initial state sync is not finished
@@ -2781,4 +2788,54 @@ func (bc *BlockChain) GetTrieFlushInterval() time.Duration {
 
 func (bc *BlockChain) NoTries() bool {
 	return bc.stateCache.NoTries()
+}
+
+// Rewind the header chain, deleting all block bodies until then
+func DelFn(bc *BlockChain, db ethdb.KeyValueWriter, hash common.Hash, num uint64) {
+	log.Info("zxl step into del fn")
+	// Ignore the error here since light client won't hit this path
+	frozen, _ := bc.db.Ancients()
+	if num+1 <= frozen {
+		log.Info("zxl step into frozen del fn")
+		// Truncate all relative data(header, total difficulty, body, receipt
+		// and canonical hash) from ancient store.
+		if _, err := bc.db.TruncateHead(num); err != nil {
+			log.Crit("Failed to truncate ancient data", "number", num, "err", err)
+		}
+		// Remove the hash <-> number mapping from the active store.
+		rawdb.DeleteHeaderNumber(db, hash)
+	} else {
+		log.Info("zxl step into non-frozen del fn")
+		// Remove relative body and receipts from the active store.
+		// The header, total difficulty and canonical hash will be
+		// removed in the hc.SetHead function.
+		rawdb.DeleteBody(db, hash, num)
+		rawdb.DeleteReceipts(db, hash, num)
+	}
+}
+
+// 在外层定义一个工厂函数，返回符合签名要求的 delFn 函数
+func createDelFn(bc *BlockChain) func(db ethdb.KeyValueWriter, hash common.Hash, num uint64) {
+	return func(db ethdb.KeyValueWriter, hash common.Hash, num uint64) {
+		log.Info("zxl step into del fn")
+		// Ignore the error here since light client won't hit this path
+		frozen, _ := bc.db.Ancients()
+		if num+1 <= frozen {
+			log.Info("zxl step into frozen del fn")
+			// Truncate all relative data(header, total difficulty, body, receipt
+			// and canonical hash) from ancient store.
+			if _, err := bc.db.TruncateHead(num); err != nil {
+				log.Crit("Failed to truncate ancient data", "number", num, "err", err)
+			}
+			// Remove the hash <-> number mapping from the active store.
+			rawdb.DeleteHeaderNumber(db, hash)
+		} else {
+			log.Info("zxl step into non-frozen del fn")
+			// Remove relative body and receipts from the active store.
+			// The header, total difficulty and canonical hash will be
+			// removed in the hc.SetHead function.
+			rawdb.DeleteBody(db, hash, num)
+			rawdb.DeleteReceipts(db, hash, num)
+		}
+	}
 }
