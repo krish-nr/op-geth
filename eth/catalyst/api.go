@@ -329,6 +329,9 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			return engine.ForkChoiceResponse{PayloadStatus: engine.PayloadStatusV1{Status: engine.INVALID, LatestValidHash: &latestValid}}, err
 		}
 	} else if api.eth.BlockChain().CurrentBlock().Hash() == update.HeadBlockHash {
+		log.Info("zxl CurrentBlock().Hash() == update.HeadBlockHash ")
+		log.Info("aim to reset")
+
 		// If the specified head matches with our local head, do nothing and keep
 		// generating the payload. It's a special corner case that a few slots are
 		// missing and we are requested to generate the payload in slot.
@@ -355,9 +358,24 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			log.Warn("Final block not in canonical chain", "number", block.NumberU64(), "hash", update.HeadBlockHash)
 			return engine.STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not in canonical chain"))
 		}
+
+		//增加一个判断
+		currentFinal := api.eth.BlockChain().CurrentFinalBlock()
+		currentHead := api.eth.BlockChain().CurrentBlock()
+		log.Info("zxl", "current final", currentFinal.Number.Uint64(), "current block", currentHead.Number.Uint64(), "update final", finalBlock.Number().Uint64())
+
 		// Set the finalized block
 		log.Info("ZXL: finalized set", "finalized", finalBlock.Number().Uint64())
 		api.eth.BlockChain().SetFinalized(finalBlock.Header())
+
+		if currentFinal.Number.Uint64() > currentHead.Number.Uint64() && currentFinal.Number.Uint64() > finalBlock.NumberU64() {
+			//清理数据
+			log.Warn("zxl delete data in finalize")
+			api.eth.BlockChain().HeaderChainForceSetHead(currentHead.Number.Uint64())
+			api.eth.BlockChain().SetFinalized(currentHead)
+			api.eth.BlockChain().SetSafe(currentHead)
+		}
+
 	}
 	// Check if the safe block hash is in our canonical tree, if not somethings wrong
 	if update.SafeBlockHash != (common.Hash{}) {
@@ -370,9 +388,23 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 			log.Warn("Safe block not in canonical chain")
 			return engine.STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not in canonical chain"))
 		}
+
+		//增加一个判断
+		currentSafe := api.eth.BlockChain().CurrentSafeBlock()
+		currentHead := api.eth.BlockChain().CurrentBlock()
+		log.Info("zxl", "current safe", currentSafe.Number.Uint64(), "current block", currentHead.Number.Uint64(), "update safe", safeBlock.Number().Uint64())
+
 		// Set the safe block
 		log.Info("ZXL: safe set", "safe", safeBlock.Number().Uint64())
 		api.eth.BlockChain().SetSafe(safeBlock.Header())
+
+		if currentSafe.Number.Uint64() > currentHead.Number.Uint64() && currentSafe.Number.Uint64() > safeBlock.NumberU64() {
+			//清理数据
+			log.Warn("zxl delete data in safe")
+			api.eth.BlockChain().HeaderChainForceSetHead(currentHead.Number.Uint64())
+			api.eth.BlockChain().SetFinalized(currentHead)
+			api.eth.BlockChain().SetSafe(currentHead)
+		}
 	}
 	// If payload generation was requested, create a new block to be potentially
 	// sealed by the beacon client. The payload will be requested later, and we

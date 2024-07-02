@@ -389,23 +389,29 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// Make sure the state associated with the block is available, or log out
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
-	headHeader := bc.hc.CurrentHeader()
+	//headHeader := bc.hc.CurrentHeader()
 
 	log.Info("zxl get header and block", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
-	if headHeader.Number.Uint64() > head.Number.Uint64() {
-		log.Info("zxl step into SetHead")
-		bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
+	/*
+		if headHeader.Number.Uint64() > head.Number.Uint64() {
+			log.Info("zxl step into SetHead")
+			bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
 
-		//想办法
+			//想办法
+			bc.SetSafe(head)
+			bc.SetFinalized(head)
+
+		}
+
+	*/
+
+	//想办法
+	/*
 		bc.SetSafe(head)
 		bc.SetFinalized(head)
 
-	}
-
-	//想办法
-	bc.SetSafe(head)
-	bc.SetFinalized(head)
+	*/
 
 	log.Info("zxl get header and block after seethead", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
@@ -428,7 +434,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 			if bc.triedb.Scheme() == rawdb.PathScheme {
 				recoverable, _ := bc.triedb.Recoverable(diskRoot)
 				if !bc.HasState(diskRoot) && !recoverable {
-					log.Info("ZXL: diskRoot reset")
+					log.Info("diskRoot reset")
 					diskRoot = bc.triedb.Head()
 				}
 			}
@@ -2848,4 +2854,8 @@ func createDelFn(bc *BlockChain) func(db ethdb.KeyValueWriter, hash common.Hash,
 			rawdb.DeleteReceipts(db, hash, num)
 		}
 	}
+}
+
+func (bc *BlockChain) HeaderChainForceSetHead(headNumber uint64) {
+	bc.hc.SetHead(headNumber, nil, createDelFn(bc))
 }
