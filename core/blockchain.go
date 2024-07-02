@@ -389,22 +389,19 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// Make sure the state associated with the block is available, or log out
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
-	//headHeader := bc.hc.CurrentHeader()
+	headHeader := bc.hc.CurrentHeader()
 
 	log.Info("zxl get header and block", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
-	/*
-		if headHeader.Number.Uint64() > head.Number.Uint64() {
-			log.Info("zxl step into SetHead")
-			bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
+	if headHeader.Number.Uint64() > head.Number.Uint64() {
+		log.Info("zxl step into SetHead")
+		bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
 
-			//想办法
-			bc.SetSafe(head)
-			bc.SetFinalized(head)
+		//想办法
+		bc.SetSafe(head)
+		bc.SetFinalized(head)
 
-		}
-
-	*/
+	}
 
 	//想办法
 	/*
@@ -767,7 +764,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 						beyondRoot, rootNumber = true, newHeadBlock.NumberU64()
 					}
 					if !bc.HasState(newHeadBlock.Root()) && !bc.stateRecoverable(newHeadBlock.Root()) {
-						log.Trace("Block state missing, rewinding further", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
+						log.Debug("Block state missing, rewinding further", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash())
 						if pivot == nil || newHeadBlock.NumberU64() > *pivot {
 							if pivot == nil {
 								log.Info("ZXL step into null pivot", "newHeadBlock", newHeadBlock.Number().Uint64())
@@ -780,11 +777,12 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 							log.Error("Missing block in the middle, aiming genesis", "number", newHeadBlock.NumberU64()-1, "hash", newHeadBlock.ParentHash())
 							newHeadBlock = bc.genesisBlock
 						} else {
-							log.Trace("Rewind passed pivot, aiming genesis", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash(), "pivot", *pivot)
+							log.Debug("Rewind passed pivot, aiming genesis", "number", newHeadBlock.NumberU64(), "hash", newHeadBlock.Hash(), "pivot", *pivot)
 							newHeadBlock = bc.genesisBlock
 						}
 					}
 					if beyondRoot || newHeadBlock.NumberU64() == 0 {
+						log.Info("zxl step into beyondRoot", "beyondroot", beyondRoot, "newHeadBlock", newHeadBlock.NumberU64())
 						if !bc.HasState(newHeadBlock.Root()) && bc.stateRecoverable(newHeadBlock.Root()) {
 							// Rewind to a block with recoverable state. If the state is
 							// missing, run the state recovery here.
