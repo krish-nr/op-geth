@@ -389,28 +389,24 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// Make sure the state associated with the block is available, or log out
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
-	headHeader := bc.hc.CurrentHeader()
+	//headHeader := bc.hc.CurrentHeader()
 
 	log.Info("zxl get header and block", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
-	if headHeader.Number.Uint64() > head.Number.Uint64() {
-		log.Info("zxl step into SetHead")
-		bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
-
-		//想办法
-		bc.SetSafe(head)
-		bc.SetFinalized(head)
-
-	}
-
-	//想办法
 	/*
-		bc.SetSafe(head)
-		bc.SetFinalized(head)
+		if headHeader.Number.Uint64() > head.Number.Uint64() {
+			log.Info("zxl step into SetHead")
+			bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
+
+			//想办法
+			bc.SetSafe(head)
+			bc.SetFinalized(head)
+
+		}
 
 	*/
 
-	log.Info("zxl get header and block after seethead", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
+	log.Info("zxl get header and block after sethead", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
 
 	if !bc.NoTries() && !bc.HasState(head.Root) {
 		if head.Number.Uint64() == 0 {
@@ -697,6 +693,7 @@ func (bc *BlockChain) SetHeadWithTimestamp(timestamp uint64) error {
 func (bc *BlockChain) SetFinalized(header *types.Header) {
 	bc.currentFinalBlock.Store(header)
 	if header != nil {
+		log.Info("update final gauge to", "final", header.Number.Uint64())
 		rawdb.WriteFinalizedBlockHash(bc.db, header.Hash())
 		headFinalizedBlockGauge.Update(int64(header.Number.Uint64()))
 	} else {
@@ -709,6 +706,7 @@ func (bc *BlockChain) SetFinalized(header *types.Header) {
 func (bc *BlockChain) SetSafe(header *types.Header) {
 	bc.currentSafeBlock.Store(header)
 	if header != nil {
+		log.Info("update safe gauge to", "safe", header.Number.Uint64())
 		headSafeBlockGauge.Update(int64(header.Number.Uint64()))
 	} else {
 		headSafeBlockGauge.Update(0)
@@ -916,23 +914,27 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 
 	//修改
 
-	if bc.triedb.Scheme() == rawdb.PathScheme {
-		headHeaderUpdated := bc.CurrentBlock()
-		var safe *types.Header
-		if safe = bc.CurrentSafeBlock(); safe != nil && headHeaderUpdated.Number.Uint64() < safe.Number.Uint64() {
-			log.Warn("1.SetHead invalidated safe block", "before", safe.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
-			bc.SetSafe(headHeaderUpdated)
-		}
-		log.Info("ZXL", "safe before set", safe.Number.Uint64(), "after", bc.CurrentSafeBlock().Number.Uint64())
+	/*
+		if bc.triedb.Scheme() == rawdb.PathScheme {
+			headHeaderUpdated := bc.CurrentBlock()
+			var safe *types.Header
+			if safe = bc.CurrentSafeBlock(); safe != nil && headHeaderUpdated.Number.Uint64() < safe.Number.Uint64() {
+				log.Warn("1.SetHead invalidated safe block", "before", safe.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
+				bc.SetSafe(headHeaderUpdated)
+			}
+			log.Info("ZXL", "safe before set", safe.Number.Uint64(), "after", bc.CurrentSafeBlock().Number.Uint64())
 
-		var finalized *types.Header
+			var finalized *types.Header
 
-		if finalized = bc.CurrentFinalBlock(); finalized != nil && headHeaderUpdated.Number.Uint64() < finalized.Number.Uint64() {
-			log.Error("1.SetHead invalidated finalized block", "before", finalized.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
-			bc.SetFinalized(headHeaderUpdated)
+			if finalized = bc.CurrentFinalBlock(); finalized != nil && headHeaderUpdated.Number.Uint64() < finalized.Number.Uint64() {
+				log.Error("1.SetHead invalidated finalized block", "before", finalized.Number.Uint64(), "after", headHeaderUpdated.Number.Uint64())
+				bc.SetFinalized(headHeaderUpdated)
+			}
+			log.Info("ZXL", "finalized before set", finalized.Number.Uint64(), "after", bc.CurrentFinalBlock().Number.Uint64())
 		}
-		log.Info("ZXL", "finalized before set", finalized.Number.Uint64(), "after", bc.CurrentFinalBlock().Number.Uint64())
-	} else {
+
+	*/
+	{
 		// Clear safe block, finalized block if needed
 		var safe *types.Header
 		if safe = bc.CurrentSafeBlock(); safe != nil && head < safe.Number.Uint64() {
