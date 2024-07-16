@@ -265,7 +265,7 @@ func testIterativeStateSync(t *testing.T, count int, commit bool, bypath bool, s
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch); err != nil {
+		if err := sched.Commit(batch, nil); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -366,7 +366,7 @@ func testIterativeDelayedStateSync(t *testing.T, scheme string) {
 			nodeProcessed = len(nodeResults)
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch); err != nil {
+		if err := sched.Commit(batch, nil); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -466,7 +466,7 @@ func testIterativeRandomStateSync(t *testing.T, count int, scheme string) {
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch); err != nil {
+		if err := sched.Commit(batch, nil); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -572,7 +572,7 @@ func testIterativeRandomDelayedStateSync(t *testing.T, scheme string) {
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch); err != nil {
+		if err := sched.Commit(batch, nil); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
@@ -685,7 +685,7 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 			}
 		}
 		batch := dstDb.NewBatch()
-		if err := sched.Commit(batch); err != nil {
+		if err := sched.Commit(batch, nil); err != nil {
 			t.Fatalf("failed to commit data: %v", err)
 		}
 		batch.Write()
