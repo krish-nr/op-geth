@@ -1115,7 +1115,6 @@ var (
 		DBEngineFlag,
 		StateSchemeFlag,
 		HttpHeaderFlag,
-		MultiDataBaseFlag,
 	}
 )
 
