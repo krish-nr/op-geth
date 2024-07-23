@@ -780,7 +780,7 @@ func (n *Node) OpenAndMergeDatabase(name string, namespace string, readonly bool
 		disableChainDbFreeze = true
 	}
 
-	chainDB, err := n.OpenDatabaseWithFreezer(name, chainDbCache, chainDataHandles, config.DatabaseFreezer, namespace, readonly, disableChainDbFreeze, false, config.PruneAncientData)
+	chainDB, err := n.OpenDatabaseWithFreezer(name, chainDbCache, chainDataHandles, config.DatabaseFreezer, namespace, readonly, disableChainDbFreeze)
 	if err != nil {
 		return nil, err
 	}
@@ -797,11 +797,6 @@ func (n *Node) OpenAndMergeDatabase(name string, namespace string, readonly bool
 			return nil, err
 		}
 		log.Warn("Multi-database is an experimental feature")
-	}
-
-	chainDB, err := n.OpenDatabaseWithFreezer(name, chainDbCache, chainDataHandles, config.DatabaseFreezer, namespace, readonly, disableChainDbFreeze)
-	if err != nil {
-		return nil, err
 	}
 
 	if isMultiDatabase {
