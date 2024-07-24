@@ -811,7 +811,7 @@ func (n *Node) OpenAndMergeDatabase(name string, namespace string, readonly bool
 // also attaching a chain freezer to it that moves ancient chain data from the
 // database to immutable append-only files. If the node is an ephemeral one, a
 // memory database is returned.
-func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient string, namespace string, readonly, disableFreeze bool) (ethdb.Database, error) {
+func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient string, namespace string, readonly, isMultiDatabase bool) (ethdb.Database, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	if n.state == closedState {
@@ -830,7 +830,7 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient 
 			Cache:             cache,
 			Handles:           handles,
 			ReadOnly:          readonly,
-			MultiDataBase:     n.CheckIfMultiDataBase(),
+			MultiDataBase:     isMultiDatabase,
 		})
 	}
 
