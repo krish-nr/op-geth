@@ -718,7 +718,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, time uint64, root common.Ha
 	// Retrieve the last pivot block to short circuit rollbacks beyond it and the
 	// current freezer limit to start nuking id underflown
 	pivot := rawdb.ReadLastPivotNumber(bc.db)
-	frozen, _ := bc.db.Ancients()
+	frozen, _ := bc.db.BlockStore().Ancients()
 
 	updateFn := func(db ethdb.KeyValueWriter, header *types.Header) (*types.Header, bool) {
 		// Rewind the blockchain, ensuring we don't end up with a stateless head
@@ -1313,7 +1313,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 				size += int64(batch.ValueSize())
 				if err = batch.Write(); err != nil {
 					snapBlock := bc.CurrentSnapBlock().Number.Uint64()
-					if _, err := bc.db.TruncateHead(snapBlock + 1); err != nil {
+					if _, err := bc.db.BlockStore().TruncateHead(snapBlock + 1); err != nil {
 						log.Error("Can't truncate ancient store after failed insert", "err", err)
 					}
 					return 0, err
@@ -2780,12 +2780,12 @@ func (bc *BlockChain) NoTries() bool {
 func createDelFn(bc *BlockChain) func(db ethdb.KeyValueWriter, hash common.Hash, num uint64) {
 	return func(db ethdb.KeyValueWriter, hash common.Hash, num uint64) {
 		// Ignore the error here since light client won't hit this path
-		frozen, _ := bc.db.Ancients()
+		frozen, _ := bc.db.BlockStore().Ancients()
 		if num+1 <= frozen {
 			log.Info("process data in freeze table")
 			// Truncate all relative data(header, total difficulty, body, receipt
 			// and canonical hash) from ancient store.
-			if _, err := bc.db.TruncateHead(num); err != nil {
+			if _, err := bc.db.BlockStore().TruncateHead(num); err != nil {
 				log.Crit("Failed to truncate ancient data", "number", num, "err", err)
 			}
 			// Remove the hash <-> number mapping from the active store.
