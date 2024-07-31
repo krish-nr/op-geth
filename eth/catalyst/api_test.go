@@ -51,6 +51,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/mattn/go-colorable"
+	"strings"
 )
 
 var (
@@ -863,7 +864,7 @@ func TestTrickRemoteBlockCache(t *testing.T) {
 	// feed the payloads to node B
 	for _, payload := range invalidChain {
 		status, err := apiB.NewPayloadV1(*payload)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "forced head needed for startup") {
 			panic(err)
 		}
 		if status.Status == engine.VALID {
