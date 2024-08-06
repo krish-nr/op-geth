@@ -396,6 +396,16 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	// Make sure the state associated with the block is available, or log out
 	// if there is no available state, waiting for state sync.
 	head := bc.CurrentBlock()
+	headHeader := bc.hc.CurrentHeader()
+
+	log.Info("zxl get header and block", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
+
+	if headHeader.Number.Uint64() > head.Number.Uint64() {
+		log.Info("zxl step into SetHead")
+		bc.hc.SetHead(head.Number.Uint64(), nil, createDelFn(bc))
+	}
+	log.Info("zxl get header and block after seethead", "headerchain header", bc.hc.CurrentHeader().Number.Uint64(), "currentheader", bc.CurrentBlock().Number.Uint64())
+
 	if !bc.NoTries() && !bc.HasState(head.Root) {
 		if head.Number.Uint64() == 0 {
 			// The genesis state is missing, which is only possible in the path-based
