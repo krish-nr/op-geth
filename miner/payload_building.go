@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/big"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -261,6 +262,25 @@ func (payload *Payload) stopBuilding() {
 	})
 }
 
+// 假设这是你的fix()函数
+func (w *worker) fix(blockHash common.Hash) {
+	log.Info("Fix operation started")
+
+	block2 := w.chain.GetBlockByHash(w.chain.CurrentBlock().ParentHash)
+	if block2 != nil {
+		log.Info("fixing data for block", "blocknumber2", block2.NumberU64())
+
+	}
+	block := w.chain.GetBlockByHash(blockHash)
+	if block != nil {
+		log.Info("fixing data for block", "blocknumber", block.NumberU64())
+	}
+
+	w.chain.RecoverAncestors(block)
+
+	log.Info("Fix operation completed")
+}
+
 // buildPayload builds the payload according to the provided parameters.
 func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 	if args.NoTxPool { // don't start the background payload updating job if there is no tx pool to pull from
@@ -348,6 +368,26 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			start := time.Now()
 			// getSealingBlock is interrupted by shared interrupt
 			r := w.getSealingBlock(fullParams)
+
+			// if state missing, init fixing routine
+			if r.err != nil && strings.Contains(r.err.Error(), "missing trie node") {
+				// 锁定以确保fix只会执行一次
+				w.fixMutex.Lock()
+				if !w.fixInProgress {
+					w.fixInProgress = true
+					// 异步启动fix函数
+					go func() {
+						defer func() {
+							w.fixMutex.Lock()
+							w.fixInProgress = false
+							w.fixMutex.Unlock()
+						}()
+						w.fix(fullParams.parentHash)
+					}()
+				}
+				w.fixMutex.Unlock()
+			}
+
 			dur := time.Since(start)
 			// update handles error case
 			payload.update(r, dur, func() {
