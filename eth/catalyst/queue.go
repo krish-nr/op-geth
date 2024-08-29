@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
 )
 
@@ -80,10 +81,12 @@ func (q *payloadQueue) get(id engine.PayloadID, full bool) *engine.ExecutionPayl
 
 	for _, item := range q.payloads {
 		if item == nil {
+			log.Info("getting payload not found", "id", id)
 			return nil // no more items
 		}
 		if item.id == id {
 			if !full {
+				log.Info("getting payload", "id", id)
 				return item.payload.Resolve()
 			}
 			return item.payload.ResolveFull()

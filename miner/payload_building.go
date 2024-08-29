@@ -133,11 +133,11 @@ func (payload *Payload) update(r *newPayloadResult, elapsed time.Duration, postF
 		log.Debug("Ignoring interrupted payload update", "id", payload.id)
 		return
 	} else if r.err != nil {
-		log.Warn("Error building payload update", "id", payload.id, "err", r.err)
+		log.Warn("Error building payload update", "id", "err", r.err)
 		payload.err = r.err // record latest error
 		return
 	}
-	log.Debug("New payload update", "id", payload.id, "elapsed", common.PrettyDuration(elapsed))
+	log.Info("New payload update", "id", payload.id, "elapsed", common.PrettyDuration(elapsed))
 
 	// Ensure the newly provided full block has a higher transaction fee.
 	// In post-merge stage, there is no uncle reward anymore and transaction
@@ -167,6 +167,7 @@ func (payload *Payload) update(r *newPayloadResult, elapsed time.Duration, postF
 		}
 		buildBlockTimer.Update(elapsed)
 	}
+	log.Debug("New payload update 2", "number", payload.full.NumberU64())
 }
 
 // Resolve returns the latest built payload and also terminates the background
@@ -205,6 +206,7 @@ func (payload *Payload) resolve(onlyFull bool) *engine.ExecutionPayloadEnvelope 
 	payload.interruptBuilding()
 
 	if payload.full == nil && (onlyFull || payload.empty == nil) {
+		log.Info("step into select logic", "payloadId", payload.id.String())
 		select {
 		case <-payload.stop:
 			return nil
@@ -214,15 +216,18 @@ func (payload *Payload) resolve(onlyFull bool) *engine.ExecutionPayloadEnvelope 
 		// forever if Resolve is called in the meantime which
 		// terminates the background construction process.
 		start := time.Now()
+		log.Info("getpayload waiting")
 		payload.cond.Wait()
+		log.Info("getpayload finish waiting")
 		waitPayloadTimer.UpdateSince(start)
-		log.Debug("waitPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "id", payload.id)
+		log.Info("waitPayloadTimer", "duration", common.PrettyDuration(time.Since(start)), "id", payload.id)
 	}
 
 	// Now we can signal the building routine to stop.
 	payload.stopBuilding()
 
 	if payload.full != nil {
+		log.Info("payload is full now")
 		return engine.BlockToExecutableData(payload.full, payload.fullFees, payload.sidecars)
 	} else if !onlyFull && payload.empty != nil {
 		return engine.BlockToExecutableData(payload.empty, big.NewInt(0), nil)
@@ -276,7 +281,19 @@ func (w *worker) fix(blockHash common.Hash) {
 		log.Info("fixing data for block", "blocknumber", block.NumberU64())
 	}
 
-	w.chain.RecoverAncestors(block)
+	latestValid, err := w.chain.RecoverAncestors(block)
+	if err != nil {
+
+		block3 := w.chain.GetBlockByHash(w.chain.CurrentBlock().ParentHash)
+		if block3 != nil {
+			log.Info("after fixing data for block", "blocknumber3", block3.NumberU64())
+
+		}
+		log.Info("after fixing data for block", "latestValid", w.chain.GetBlockByHash(latestValid).NumberU64())
+	}
+
+	//这里w.chain.CurrentBlock() 是恢复前的
+	//block是恢复后的
 
 	log.Info("Fix operation completed")
 }
@@ -365,6 +382,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		}()
 
 		updatePayload := func() time.Duration {
+			log.Info("updating payload", "hash", fullParams.parentHash.String())
 			start := time.Now()
 			// getSealingBlock is interrupted by shared interrupt
 			r := w.getSealingBlock(fullParams)
@@ -372,6 +390,7 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 			// if state missing, init fixing routine
 			if r.err != nil && strings.Contains(r.err.Error(), "missing trie node") {
 				// 锁定以确保fix只会执行一次
+				log.Info("step into fixing")
 				w.fixMutex.Lock()
 				if !w.fixInProgress {
 					w.fixInProgress = true
@@ -390,11 +409,14 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 
 			dur := time.Since(start)
 			// update handles error case
+
+			log.Info("begin update")
 			payload.update(r, dur, func() {
 				w.cacheMiningBlock(r.block, r.env)
 			})
 			if r.err == nil {
 				// after first successful pass, we're updating
+				log.Info("update success")
 				fullParams.isUpdate = true
 			} else {
 				log.Error("Failed to build full payload", "id", payload.id, "err", r.err)
