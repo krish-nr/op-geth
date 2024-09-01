@@ -95,6 +95,23 @@ func (q *payloadQueue) get(id engine.PayloadID, full bool) *engine.ExecutionPayl
 	return nil
 }
 
+// getWithoutStatus retrieves a previously stored payload item or nil if it does not exist.
+func (q *payloadQueue) getWithoutStatus(id engine.PayloadID) *miner.Payload {
+	q.lock.RLock()
+	defer q.lock.RUnlock()
+
+	for _, item := range q.payloads {
+		if item == nil {
+			log.Info("getting payload not found", "id", id)
+			return nil // no more items
+		}
+		if item.id == id {
+			return item.payload
+		}
+	}
+	return nil
+}
+
 // waitFull waits until the first full payload has been built for the specified payload id
 // The method returns immediately if the payload is unknown.
 func (q *payloadQueue) waitFull(id engine.PayloadID) error {

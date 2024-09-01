@@ -21,11 +21,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"math/big"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -298,6 +299,11 @@ func (miner *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscript
 // BuildPayload builds the payload according to the provided parameters.
 func (miner *Miner) BuildPayload(args *BuildPayloadArgs) (*Payload, error) {
 	return miner.worker.buildPayload(args)
+}
+
+// Worker builds the payload according to the provided parameters.
+func (miner *Miner) Worker() *worker {
+	return miner.worker
 }
 
 func (miner *Miner) SimulateBundle(bundle *types.Bundle) (*big.Int, error) {

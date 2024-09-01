@@ -412,6 +412,12 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 		// If we already are busy generating this work, then we do not need
 		// to start a second process.
 		if api.localBlocks.has(id) {
+			// 检查是否有 fix 正在进行，监听 fix 完成
+			payload := api.localBlocks.getWithoutStatus(id)
+			if payload != nil {
+				log.Info("step into listenFix")
+				api.eth.Miner().Worker().ListenFixCompletion(id, payload, args)
+			}
 			return valid(&id), nil
 		}
 		payload, err := api.eth.Miner().BuildPayload(args)

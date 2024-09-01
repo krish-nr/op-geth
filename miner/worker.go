@@ -27,6 +27,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set/v2"
 
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -267,9 +268,16 @@ type worker struct {
 	// MEV
 	bundleCache *BundleCache
 
-	// Fix
-	fixInProgress bool
-	fixMutex      sync.Mutex
+	fixManager FixManager
+}
+
+// 提供访问 fixManager 的公共方法
+func (w *worker) StartFix(id engine.PayloadID, parentHash common.Hash) {
+	w.fixManager.StartFix(w, id, parentHash)
+}
+
+func (w *worker) ListenFixCompletion(id engine.PayloadID, payload *Payload, args *BuildPayloadArgs) {
+	w.fixManager.ListenFixCompletion(w, id, payload, args)
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(header *types.Header) bool, init bool) *worker {

@@ -282,7 +282,7 @@ func (w *worker) fix(blockHash common.Hash) {
 	}
 
 	latestValid, err := w.chain.RecoverAncestors(block)
-	if err != nil {
+	if err == nil {
 
 		block3 := w.chain.GetBlockByHash(w.chain.CurrentBlock().ParentHash)
 		if block3 != nil {
@@ -295,6 +295,7 @@ func (w *worker) fix(blockHash common.Hash) {
 	//这里w.chain.CurrentBlock() 是恢复前的
 	//block是恢复后的
 
+	//TODO setBlock到之前的head
 	log.Info("Fix operation completed")
 }
 
@@ -389,22 +390,9 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 
 			// if state missing, init fixing routine
 			if r.err != nil && strings.Contains(r.err.Error(), "missing trie node") {
-				// 锁定以确保fix只会执行一次
 				log.Info("step into fixing")
-				w.fixMutex.Lock()
-				if !w.fixInProgress {
-					w.fixInProgress = true
-					// 异步启动fix函数
-					go func() {
-						defer func() {
-							w.fixMutex.Lock()
-							w.fixInProgress = false
-							w.fixMutex.Unlock()
-						}()
-						w.fix(fullParams.parentHash)
-					}()
-				}
-				w.fixMutex.Unlock()
+				w.StartFix(payload.id, fullParams.parentHash)
+				return 0
 			}
 
 			dur := time.Since(start)
@@ -452,6 +440,42 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		}
 	}()
 	return payload, nil
+}
+
+func (w *worker) retryPayloadUpdate(args *BuildPayloadArgs, payload *Payload) {
+	fullParams := &generateParams{
+		timestamp:   args.Timestamp,
+		forceTime:   true,
+		parentHash:  args.Parent,
+		coinbase:    args.FeeRecipient,
+		random:      args.Random,
+		withdrawals: args.Withdrawals,
+		beaconRoot:  args.BeaconRoot,
+		noTxs:       false,
+		txs:         args.Transactions,
+		gasLimit:    args.GasLimit,
+	}
+
+	// Since we skip building the empty block when using the tx pool, we need to explicitly
+	// validate the BuildPayloadArgs here.
+	_, err := w.validateParams(fullParams)
+	if err != nil {
+		return
+	}
+
+	// set shared interrupt
+	fullParams.interrupt = payload.interrupt
+
+	r := w.getSealingBlock(fullParams)
+	if r.err != nil {
+		log.Error("Failed to build full payload after fix", "id", payload.id, "err", r.err)
+		return
+	}
+
+	payload.update(r, 0, func() {
+		w.cacheMiningBlock(r.block, r.env)
+	})
+	log.Info("Successfully updated payload after fix", "id", payload.id)
 }
 
 func (w *worker) cacheMiningBlock(block *types.Block, env *environment) {
