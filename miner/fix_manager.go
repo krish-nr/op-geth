@@ -21,7 +21,7 @@ func (fm *FixManager) StartFix(worker *worker, id engine.PayloadID, parentHash c
 	fm.mutex.Lock()
 	defer fm.mutex.Unlock()
 
-	if !fm.IsFixInProgress() {
+	if !fm.isFixInProgress {
 		fm.isFixInProgress = true
 		fixChan := make(chan struct{})
 		fm.fixChannels.Store(id, fixChan)
@@ -64,11 +64,4 @@ func (fm *FixManager) ListenFixCompletion(worker *worker, id engine.PayloadID, p
 		fm.fixChannels.Delete(id)     // 删除 fixChannels 中的 id
 		fm.listenerStarted.Delete(id) // 删除 listenerStarted 中的标记位
 	}()
-}
-
-// 检查 fix 是否正在进行
-func (fm *FixManager) IsFixInProgress() bool {
-	fm.mutex.Lock()
-	defer fm.mutex.Unlock()
-	return fm.isFixInProgress
 }
