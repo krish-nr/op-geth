@@ -597,6 +597,8 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 	// update after legit payload executions.
 	parent := api.eth.BlockChain().GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
+		log.Info("step into no block")
+
 		return api.delayPayloadImport(block)
 	}
 	// We have an existing parent, do some sanity checks to avoid the beacon client
@@ -623,6 +625,7 @@ func (api *ConsensusAPI) newPayload(params engine.ExecutableData, versionedHashe
 	// into the database directly will conflict with the assumptions of snap sync
 	// that it has an empty db that it can fill itself.
 	if api.eth.SyncMode() != downloader.FullSync {
+		log.Info("step into fullsync jusgement")
 		return api.delayPayloadImport(block)
 	}
 	if !api.eth.BlockChain().HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
