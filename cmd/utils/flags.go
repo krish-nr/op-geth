@@ -23,7 +23,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/txpool/bundlepool"
 	"math"
 	"math/big"
 	"net"
@@ -34,6 +33,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core/txpool/bundlepool"
 
 	pcsclite "github.com/gballet/go-libpcsclite"
 	gopsutil "github.com/shirou/gopsutil/mem"
@@ -2183,7 +2184,9 @@ func SetDNSDiscoveryDefaults(cfg *ethconfig.Config, genesis common.Hash) {
 func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend, *eth.Ethereum) {
 	backend, err := eth.New(stack, cfg)
 	if err != nil {
-		Fatalf("Failed to register the Ethereum service: %v", err)
+		if strings.Contains(err.Error(), "state is not available") {
+			Fatalf("Failed to register the Ethereum service: %v", err)
+		}
 	}
 	stack.RegisterAPIs(tracers.APIs(backend.APIBackend))
 	return backend.APIBackend, backend
