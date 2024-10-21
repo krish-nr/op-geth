@@ -2184,7 +2184,7 @@ func SetDNSDiscoveryDefaults(cfg *ethconfig.Config, genesis common.Hash) {
 func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend, *eth.Ethereum) {
 	backend, err := eth.New(stack, cfg)
 	if err != nil {
-		if strings.Contains(err.Error(), "state is not available") {
+		if !strings.Contains(err.Error(), "state is not available") {
 			Fatalf("Failed to register the Ethereum service: %v", err)
 		}
 	}
