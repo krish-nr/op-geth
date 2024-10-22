@@ -22,6 +22,7 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -358,7 +359,7 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 		log.Error("error 1.1")
 		statedb, err = pool.chain.StateAt(types.EmptyRootHash)
 	}
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "state is not available") {
 		log.Error("error 1.2")
 		return err
 	}
