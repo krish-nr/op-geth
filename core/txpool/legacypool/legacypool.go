@@ -26,6 +26,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
@@ -37,7 +39,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -354,9 +355,11 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 	// fully synced).
 	statedb, err := pool.chain.StateAt(head.Root)
 	if err != nil {
+		log.Error("error 1.1")
 		statedb, err = pool.chain.StateAt(types.EmptyRootHash)
 	}
 	if err != nil {
+		log.Error("error 1.2")
 		return err
 	}
 	pool.currentHead.Store(head)

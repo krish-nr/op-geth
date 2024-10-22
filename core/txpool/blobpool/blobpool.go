@@ -29,6 +29,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/holiman/billy"
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
@@ -41,8 +44,6 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/holiman/billy"
-	"github.com/holiman/uint256"
 )
 
 const (
@@ -364,9 +365,11 @@ func (p *BlobPool) Init(gasTip uint64, head *types.Header, reserve txpool.Addres
 	// fully synced).
 	state, err := p.chain.StateAt(head.Root)
 	if err != nil {
+		log.Error("error 1.3")
 		state, err = p.chain.StateAt(types.EmptyRootHash)
 	}
 	if err != nil {
+		log.Error("error 1.4")
 		return err
 	}
 	p.head, p.state = head, state
