@@ -21,11 +21,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/txpool/bundlepool"
 	"math/big"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core/txpool/bundlepool"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -303,6 +304,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	eth.txPool, err = txpool.New(config.TxPool.PriceLimit, eth.blockchain, txPools)
 	if err != nil {
+		log.Error("error 1")
 		return nil, err
 	}
 	// Permit the downloader to use the trie cache allowance during fast sync
@@ -319,6 +321,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		RequiredBlocks: config.RequiredBlocks,
 		NoTxGossip:     config.RollupDisableTxPoolGossip,
 	}); err != nil {
+		log.Error("error 2")
 		return nil, err
 	}
 
@@ -342,10 +345,14 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	dnsclient := dnsdisc.NewClient(dnsdisc.Config{})
 	eth.ethDialCandidates, err = dnsclient.NewIterator(eth.config.EthDiscoveryURLs...)
 	if err != nil {
+		log.Error("error 3")
+
 		return nil, err
 	}
 	eth.snapDialCandidates, err = dnsclient.NewIterator(eth.config.SnapDiscoveryURLs...)
 	if err != nil {
+		log.Error("error 4")
+
 		return nil, err
 	}
 
