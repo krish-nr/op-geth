@@ -21,7 +21,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"math/big"
 	"strings"
 	"sync"
@@ -450,54 +449,6 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 		}
 	}()
 	return payload, nil
-}
-
-// retryPayloadUpdate retries the payload update process after a fix operation.
-//
-// This function reconstructs the block using the provided BuildPayloadArgs and
-// attempts to update the payload in the system. It performs validation of the
-// block parameters and updates the payload if the block is successfully built.
-func (w *worker) retryPayloadUpdate(args *BuildPayloadArgs, payload *Payload) error {
-	fullParams := &generateParams{
-		timestamp:   args.Timestamp,
-		forceTime:   true,
-		parentHash:  args.Parent,
-		coinbase:    args.FeeRecipient,
-		random:      args.Random,
-		withdrawals: args.Withdrawals,
-		beaconRoot:  args.BeaconRoot,
-		noTxs:       false,
-		txs:         args.Transactions,
-		gasLimit:    args.GasLimit,
-	}
-
-	// Since we skip building the empty block when using the tx pool, we need to explicitly
-	// validate the BuildPayloadArgs here.
-	_, err := w.validateParams(fullParams)
-	if err != nil {
-		log.Error("Failed to validate payload parameters", "id", payload.id, "err", err)
-		return fmt.Errorf("failed to validate payload parameters: %w", err)
-	}
-
-	// set shared interrupt
-	fullParams.interrupt = payload.interrupt
-
-	r := w.getSealingBlock(fullParams)
-	if r.err != nil {
-		log.Error("Failed to build full payload after fix", "id", payload.id, "err", r.err)
-		return fmt.Errorf("failed to build full payload after fix: %w", r.err)
-	}
-
-	payload.update(r, 0, func() {
-		w.cacheMiningBlock(r.block, r.env)
-	})
-
-	if r.err == nil {
-		fullParams.isUpdate = true
-	}
-
-	log.Info("Successfully updated payload after fix", "id", payload.id)
-	return nil
 }
 
 func (w *worker) cacheMiningBlock(block *types.Block, env *environment) {
