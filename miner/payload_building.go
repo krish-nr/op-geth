@@ -364,6 +364,9 @@ func (w *worker) buildPayload(args *BuildPayloadArgs) (*Payload, error) {
 
 	//check state of parent block
 	_, err = w.retrieveParentState(fullParams)
+	if err != nil {
+		log.Error("err here", err)
+	}
 	if err != nil && strings.Contains(err.Error(), "missing trie node") {
 		log.Error("missing parent state when building block, try to fix...")
 		// fix state data
